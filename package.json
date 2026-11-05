@@ -4,8 +4,14 @@
   "private": true,
   "description": "A secure Discord server setup assistant with a ChatGPT Actions API.",
   "type": "module",
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node src/index.js", "dev": "node --watch src/index.js" },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
   "dependencies": {
     "discord.js": "^14.19.3",
     "dotenv": "^16.4.7",
