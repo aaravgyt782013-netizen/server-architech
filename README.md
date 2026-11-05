@@ -5,7 +5,8 @@ A mobile-friendly Discord server structure dashboard with an AI command planner 
 ## What it does
 
 - Sign in to a private mobile-friendly dashboard.
-- Describe the Discord layout you want in ordinary language.
+- Describe the Discord layout you want in ordinary language, or attach up to 3 visual reference screenshots/photos (compressed in the browser and processed for that request only).
+- Use an expert-style planning prompt focused on professional server architecture, hierarchy, consistent naming, usability and least-privilege design.
 - Ask the AI planner to turn that instruction into a structured plan.
 - Preview every proposed role, category and channel before changing Discord.
 - Type **APPLY** to confirm the exact preview.
@@ -13,7 +14,7 @@ A mobile-friendly Discord server structure dashboard with an AI command planner 
 - Skips names that already exist; does not delete or edit existing server objects.
 - Restricts generated role permissions to a small safe allowlist. Administrator and moderation permissions are not allowed.
 
-This remains a conservative first release. It does not yet configure detailed per-channel permission overwrites, moderation, tickets, automod, role assignment or message content.
+This remains a conservative first release. Visual references inform the proposed structure, but this release only creates roles, categories, text channels and voice channels. It does not yet configure detailed per-channel permission overwrites, moderation, tickets, automod, role assignment or message content. The planner must not claim those unsupported features have been configured.
 
 ## 1. Discord application
 
