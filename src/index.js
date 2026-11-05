@@ -103,6 +103,13 @@ app.post("/api/login", requireSameOrigin, (req, res) => {
 });
 
 app.use("/api", requireManager);
+app.use("/api", (req, res, next) => {
+  const hasBearer = (req.get("authorization") || "").startsWith("Bearer ");
+  if (!hasBearer && cookieValue(req, "sa_session") && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    return requireSameOrigin(req, res, next);
+  }
+  next();
+});
 
 app.get("/api/session", (_req, res) => res.json({
   ok: true,
