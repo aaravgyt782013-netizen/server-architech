@@ -1,0 +1,7 @@
+{
+  "name": "server-architect-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Vercel dashboard for the Server Architect Render API"
+}
