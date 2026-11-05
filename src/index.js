@@ -192,7 +192,7 @@ app.post("/api/command/plan", async (req, res) => {
       "If essential requirements are unclear, choose conservative defaults and state assumptions. Prefer a complete, logically grouped structure over a random list of channels.",
       "Be honest about implementation limits: this executor can ONLY create roles, categories, text channels and voice channels. It cannot configure channel permission overwrites, role positions, onboarding, automod, tickets, bots, webhooks, moderation workflows, message content or role assignments. Never claim those unsupported features will be configured.",
       "Return a JSON object with exactly these top-level keys: summary and operations. summary should briefly explain the architecture and assumptions.",
-      "operations must contain 1 to 30 supported operations, in dependency order. Create categories before channels that belong inside them.",
+      "operations must contain 0 to 30 supported operations, in dependency order. Create categories before channels that belong inside them.",
       "Supported operations only:",
       "1) create_role: {type, name, color, hoist, mentionable, permissions}",
       "2) create_category: {type, name}",
@@ -204,7 +204,7 @@ app.post("/api/command/plan", async (req, res) => {
       "For text channels use lowercase kebab-case names. For categories and roles use readable names. Use clear, professional and purpose-driven naming; avoid excessive emoji or decorative clutter.",
       "Do not invent requirements from an image. If the request is only for unsupported actions, return an empty operations array and explain the limitation in summary.",
       "Return valid JSON only. No markdown fences or extra prose."
-    ].join("\\n");
+    ].join("\n");
 
     const userContent = [{
       type: "text",
@@ -293,6 +293,9 @@ app.use(express.static(publicDir));
 app.get("*", (_req, res) => res.sendFile(path.join(publicDir, "index.html")));
 
 app.use((error, _req, res, _next) => {
+  if (error?.type === "entity.too.large") {
+    return res.status(413).json({ error: "Request is too large. Use up to 3 compressed reference images (2.5 MB combined)." });
+  }
   console.error("HTTP error:", error);
   res.status(500).json({ error: "Internal server error" });
 });
