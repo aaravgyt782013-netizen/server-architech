@@ -12,7 +12,13 @@ export const config = Object.freeze({
   clientId: process.env.CLIENT_ID.trim(),
   guildId: process.env.GUILD_ID.trim(),
   apiKey: process.env.MANAGER_API_KEY.trim(),
+  dashboardPassword: (process.env.DASHBOARD_PASSWORD || "").trim(),
+  sessionSecret: (process.env.DASHBOARD_SESSION_SECRET || process.env.MANAGER_API_KEY).trim(),
+  aiApiKey: (process.env.AI_API_KEY || "").trim(),
+  aiBaseUrl: (process.env.AI_BASE_URL || "https://api.openai.com/v1").trim().replace(/\/+$/, ""),
+  aiModel: (process.env.AI_MODEL || "gpt-4o-mini").trim(),
   port: Number(process.env.PORT || 10000),
+  nodeEnv: process.env.NODE_ENV || "development",
   managerUserIds: (process.env.MANAGER_DISCORD_USER_IDS || "")
     .split(",").map((id) => id.trim()).filter(Boolean)
 });
