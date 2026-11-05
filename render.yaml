@@ -15,6 +15,16 @@ services:
         sync: false
       - key: MANAGER_API_KEY
         sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: DASHBOARD_SESSION_SECRET
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: AI_MODEL
+        value: gpt-4o-mini
       - key: MANAGER_DISCORD_USER_IDS
         sync: false
       - key: NODE_ENV
