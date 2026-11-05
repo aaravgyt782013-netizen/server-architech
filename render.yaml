@@ -22,9 +22,9 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: AI_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://generativelanguage.googleapis.com/v1beta/openai
       - key: AI_MODEL
-        value: gpt-4o-mini
+        value: gemini-3.6-flash
       - key: MANAGER_DISCORD_USER_IDS
         sync: false
       - key: NODE_ENV
