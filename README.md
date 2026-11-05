@@ -1,102 +1,71 @@
 # Server Architect
 
-A Discord server structure assistant with a protected HTTP API designed for ChatGPT Actions.
+A mobile-friendly Discord server structure dashboard with an AI command planner and a protected Discord bot API.
 
-## Current capabilities
+## What it does
 
-- Connects to one configured Discord server.
-- Reports bot/server status.
-- Previews a proposed plan before applying it.
+- Sign in to a private mobile-friendly dashboard.
+- Describe the Discord layout you want in ordinary language.
+- Ask the AI planner to turn that instruction into a structured plan.
+- Preview every proposed role, category and channel before changing Discord.
+- Type **APPLY** to confirm the exact preview.
 - Creates roles, categories, text channels and voice channels.
 - Skips names that already exist; does not delete or edit existing server objects.
 - Restricts generated role permissions to a small safe allowlist. Administrator and moderation permissions are not allowed.
-- Requires an explicit confirmation string for applying a plan.
 
-This is a conservative first version. It is not an unrestricted Discord administrator and does not yet configure detailed per-channel permission overwrites, moderation, tickets, automod or message content.
+This remains a conservative first release. It does not yet configure detailed per-channel permission overwrites, moderation, tickets, automod, role assignment or message content.
 
 ## 1. Discord application
 
-1. Open https://discord.com/developers/applications and create an application.
+1. Create an application at https://discord.com/developers/applications.
 2. Open **Bot** and create/reset the bot token. Keep it secret.
 3. Copy the **Application ID** from General Information.
-4. Enable no privileged intents; this version only needs the Guilds intent.
-5. Use OAuth2 URL Generator with scopes `bot` and `applications.commands`.
-6. Grant the bot only the permissions it needs: **Manage Roles**, **Manage Channels**, **View Channels**, and **Send Messages** (the status command uses ephemeral interaction responses). Do not grant Administrator.
-7. Invite the bot to your existing server. Ensure its bot role is positioned above roles it must create/manage if you later add role assignment features.
-
-To copy your server ID: Discord Settings -> Advanced -> enable Developer Mode, then right-click/tap the server name -> Copy Server ID.
+4. This version only needs the Guilds intent.
+5. Invite the bot using scopes `bot` and `applications.commands`.
+6. Grant only **Manage Roles**, **Manage Channels**, and **View Channels**. Do not grant Administrator.
+7. Invite it to your existing server. Keep the bot role high enough in the role list for the roles it needs to create.
 
 ## 2. Deploy to Render
 
-1. Push this repository to GitHub.
-2. Open https://dashboard.render.com/ and choose **New -> Blueprint**.
-3. Connect GitHub and select this repository. Render reads `render.yaml`.
-4. Set these environment variables in the Render service:
+1. Open https://dashboard.render.com/ and choose **New -> Blueprint**.
+2. Connect GitHub and select this repository. Render reads `render.yaml`.
+3. Set the following environment variables in the Render service:
    - `DISCORD_TOKEN`: bot token from Discord Developer Portal
    - `CLIENT_ID`: Discord Application ID
    - `GUILD_ID`: target server ID
-   - `MANAGER_API_KEY`: a long random secret (at least 32 random characters)
-   - `MANAGER_DISCORD_USER_IDS`: optional comma-separated Discord user IDs allowed to use the slash command
-5. Deploy and wait for the service to become Live.
-6. Open `https://YOUR-SERVICE.onrender.com/health`. It should return JSON with `ok: true` and `discordReady: true`.
+   - `MANAGER_API_KEY`: a long random secret (at least 32 characters)
+   - `DASHBOARD_PASSWORD`: a separate strong password you will use to sign in to the dashboard
+   - `AI_API_KEY`: API key from your chosen AI provider
+   - `AI_BASE_URL`: API base URL (default is OpenAI-compatible `https://api.openai.com/v1`)
+   - `AI_MODEL`: model name supported by that provider (default `gpt-4o-mini`)
+   - `DASHBOARD_SESSION_SECRET`: optional separate random secret for signing browser sessions
+4. Deploy and wait for the service to become Live.
+5. Open `https://YOUR-SERVICE.onrender.com/health`. It should return `ok: true` and `discordReady: true`.
+6. Open the root service URL on your phone and sign in with `DASHBOARD_PASSWORD`.
 
-Never put real secrets in GitHub, source files, screenshots, or ChatGPT messages. If a token is exposed, reset it in the Developer Portal and update Render.
+The AI settings use an OpenAI-compatible Chat Completions endpoint. You may configure a compatible provider by changing `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`. Provider compatibility varies; test the planner after deployment.
 
-## 3. Test the API
+## 3. Use the dashboard
 
-Use an API client such as Postman or a terminal. Add this header to protected endpoints:
+1. Open your Render service URL.
+2. Sign in with your dashboard password.
+3. Enter an instruction such as: "Create a professional staff section with Management, Trial Staff and Staff roles, a staff information category, staff chat, evidence and a staff voice channel."
+4. Tap **Generate preview**.
+5. Review the proposed changes carefully.
+6. Type `APPLY` and tap **Apply approved changes**.
 
-`Authorization: Bearer YOUR_MANAGER_API_KEY`
+The browser session is HTTP-only, same-site and signed by the server. The Discord bot token, AI API key and manager API key are never placed in browser code. The API also continues to accept Bearer authentication for trusted integrations.
 
-Check status:
+## Security
 
-`GET https://YOUR-SERVICE.onrender.com/api/status`
-
-Preview a plan:
-
-`POST https://YOUR-SERVICE.onrender.com/api/plan`
-
-Example JSON:
-
-```json
-{
-  "operations": [
-    { "type": "create_role", "name": "Management", "color": "#E74C3C", "hoist": true },
-    { "type": "create_category", "name": "STAFF OPERATIONS" },
-    { "type": "create_text_channel", "name": "staff-chat", "category": "STAFF OPERATIONS" },
-    { "type": "create_text_channel", "name": "staff-evidence", "category": "STAFF OPERATIONS" },
-    { "type": "create_voice_channel", "name": "Staff Voice", "category": "STAFF OPERATIONS" }
-  ]
-}
-```
-
-Review the preview. Only after approval, send the same JSON to `POST /api/apply` with an additional field:
-
-`"confirm": "APPLY_SERVER_PLAN"`
-
-## 4. Connect a ChatGPT custom GPT Action
-
-This API is designed for a custom GPT Action; deploying the bot does not automatically connect every ordinary ChatGPT conversation.
-
-1. In ChatGPT, create a custom GPT (if GPT creation and Actions are available on your account).
-2. Open its **Configure -> Actions** area and add an action.
-3. Import the contents of `openapi.yaml`.
-4. Replace `https://YOUR-RENDER-SERVICE.onrender.com` in the OpenAPI server URL with your real Render service URL.
-5. Set Authentication to **API Key**, choose **Bearer**, and enter the same `MANAGER_API_KEY` value you set in Render.
-6. Save and test `getServerStatus`.
-7. Ask the GPT to prepare a server layout. It should call `previewServerChanges`, show you the proposed changes, and only call `applyApprovedServerChanges` after you explicitly approve.
-
-Keep the Action private. Anyone who can use an exposed API key could control the configured server within the API's supported operations. Rotate the key if it is ever exposed.
+- Never put real secrets in GitHub, screenshots, public pages or ChatGPT messages.
+- Do not grant the bot Administrator.
+- Keep the dashboard password private and different from the API key.
+- If a token or key is exposed, rotate it in its provider and update Render.
+- The dashboard session expires after 12 hours.
+- Applying changes requires a fresh preview and typing APPLY.
+- The current release only creates supported objects; it does not delete or edit existing server objects.
 
 ## Environment variables
 
-See `.env.example`. Local development: copy it to `.env`, fill in values, run `npm install`, then `npm start`.
-
-## Important limitations
-
-- The bot cannot create a new Discord server; the server owner must create one and invite the bot.
-- The API is scoped to one `GUILD_ID`.
-- The first release only creates roles and channels. It never deletes anything.
-- It does not grant Administrator or dangerous moderation permissions to generated roles.
-- Render free services may sleep when idle; the first request after sleeping can take time.
-- ChatGPT Actions availability depends on the ChatGPT product/account configuration.
+See `.env.example`. For local development, copy it to `.env`, fill in values, run `npm install`, then `npm start`.
