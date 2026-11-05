@@ -47,3 +47,17 @@ test("preview marks existing names as skipped and new names as create", async ()
     "already_exists_or_name_in_use", "will_create"
   ]);
 });
+
+test("preview skips duplicate names repeated within the same plan", async () => {
+  const guild = { roles: { cache: [] }, channels: { cache: [] } };
+  const preview = await previewPlan(guild, { operations: [
+    { type: "create_role", name: "Member" },
+    { type: "create_role", name: "Member" },
+    { type: "create_text_channel", name: "general" },
+    { type: "create_text_channel", name: "general" }
+  ] });
+  assert.deepEqual(preview.operations.map(x => x.status), [
+    "will_create", "already_exists_or_name_in_use",
+    "will_create", "already_exists_or_name_in_use"
+  ]);
+});
