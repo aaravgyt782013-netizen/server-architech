@@ -60,9 +60,9 @@ export async function previewPlan(guild, plan) {
   const existingChannels = new Set(guild.channels.cache.map((c) => c.name.toLowerCase()));
   const operations = normalized.operations.map((op) => {
     const key = op.name.toLowerCase();
-    const exists = op.type === "create_role"
-      ? existingRoles.has(key)
-      : existingChannels.has(key);
+    const names = op.type === "create_role" ? existingRoles : existingChannels;
+    const exists = names.has(key);
+    if (!exists) names.add(key);
     return { ...op, status: exists ? "already_exists_or_name_in_use" : "will_create" };
   });
   return {
