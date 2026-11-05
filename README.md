@@ -36,14 +36,14 @@ This remains a conservative first release. It does not yet configure detailed pe
    - `MANAGER_API_KEY`: a long random secret (at least 32 characters)
    - `DASHBOARD_PASSWORD`: a separate strong password you will use to sign in to the dashboard
    - `AI_API_KEY`: API key from your chosen AI provider
-   - `AI_BASE_URL`: API base URL (default is OpenAI-compatible `https://api.openai.com/v1`)
-   - `AI_MODEL`: model name supported by that provider (default `gpt-4o-mini`)
+   - `AI_BASE_URL`: API base URL (default is Gemini OpenAI-compatible `https://generativelanguage.googleapis.com/v1beta/openai`)
+   - `AI_MODEL`: model name supported by that provider (default `gemini-3.6-flash`)
    - `DASHBOARD_SESSION_SECRET`: optional separate random secret for signing browser sessions
 4. Deploy and wait for the service to become Live.
 5. Open `https://YOUR-SERVICE.onrender.com/health`. It should return `ok: true` and `discordReady: true`.
 6. Open the root service URL on your phone and sign in with `DASHBOARD_PASSWORD`.
 
-The AI settings use an OpenAI-compatible Chat Completions endpoint. You may configure a compatible provider by changing `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`. Provider compatibility varies; test the planner after deployment.
+The AI settings use an Gemini OpenAI-compatible Chat Completions endpoint. You may configure another compatible provider by changing `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`. Provider compatibility varies; test the planner after deployment.
 
 ## 3. Use the dashboard
 
