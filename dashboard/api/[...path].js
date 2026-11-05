@@ -1,3 +1,5 @@
+export const config = { api: { bodyParser: { sizeLimit: "5mb" } } };
+
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
 
 export default async function handler(req, res) {
