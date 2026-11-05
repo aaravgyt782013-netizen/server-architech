@@ -21,6 +21,7 @@
     .hidden{display:none!important}.notice{padding:12px 14px;border-radius:12px;background:#17243b;border:1px solid #2d4264;color:#dce6ff;margin-top:12px;font-size:13px}.error{background:#351c29;border-color:#693344;color:#ffd5dc}.success{background:#102c29;border-color:#245b4d;color:#c9ffeb}
     .op{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #263653}.op:last-child{border-bottom:0}.opicon{width:34px;height:34px;flex:none;border-radius:10px;background:#202e49;display:grid;place-items:center}.op strong{display:block;font-size:14px}.op small{color:var(--muted);font-size:12px}.tag{font-size:10px;border-radius:999px;padding:3px 7px;background:#203b34;color:#8af0c7;margin-left:6px}
     .footer{font-size:11px;color:#71819e;text-align:center;margin-top:24px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.muted{color:var(--muted)}
+    .upload{border:1px dashed #50658b;border-radius:14px;padding:16px;background:#0b1425}.upload input{padding:10px;border:0;background:transparent}.hint{font-size:12px;color:var(--muted);margin-top:6px}.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.ref{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0a1222}.ref img{width:100%;height:112px;object-fit:cover;display:block}.ref button{position:absolute;top:6px;right:6px;padding:5px 8px;background:#351c29;color:#fff}.ref span{display:block;padding:6px 8px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expert{border-left:3px solid var(--accent);padding:10px 12px;background:#111c32;border-radius:0 10px 10px 0;margin-top:12px;font-size:12px;color:#c8d5f2}
     @media(max-width:520px){.wrap{padding:18px 12px 40px}.panel{padding:16px;border-radius:16px}.status{grid-template-columns:1fr 1fr}.status .stat:last-child{grid-column:span 2}.top{align-items:flex-start}.pill{font-size:10px}}
   </style>
 </head>
@@ -52,11 +53,17 @@
       </section>
 
       <section class="panel">
-        <h2>What should I build?</h2>
-        <p>Describe the roles, categories and channels you want. The AI will prepare a plan first.</p>
+        <div class="row"><div><h2>Architect your Discord server</h2><p>Professional planning, visual references and approval-first execution.</p></div><span class="pill">EXPERT MODE</span></div>
+        <div class="expert">Think like a senior Discord community architect: design a coherent hierarchy, clear staff structure, intuitive channel taxonomy, consistent naming and least-privilege roles. Analyse the whole request before proposing changes.</div>
         <label for="command">Your instruction</label>
-        <textarea id="command" maxlength="2000" placeholder="Example: Create a professional staff area with Management, Trial Staff and Staff roles, a staff information category, staff chat, evidence and a staff voice channel."></textarea>
-        <div class="actions"><button id="generate" class="primary" type="button">✦ Generate preview</button></div>
+        <textarea id="command" maxlength="4000" placeholder="Describe your community, server purpose, member types, staff team, channels, permissions and the experience you want. Example: Design a premium gaming community with a clear public area and a private staff workspace."></textarea>
+        <label for="referenceImages">Visual references (optional)</label>
+        <div class="upload">
+          <input id="referenceImages" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+          <div class="hint">Upload up to 3 screenshots or photos of Discord layouts, role lists, channel structures or design inspiration. Images are compressed in your browser and sent securely for this request only.</div>
+          <div id="referencePreviews" class="refs"></div>
+        </div>
+        <div class="actions"><button id="generate" class="primary" type="button">✦ Analyse & generate architecture</button></div>
         <div id="planMessage" class="notice hidden"></div>
       </section>
 
@@ -80,6 +87,68 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let currentPlan = null;
+let referenceImages = [];
+const MAX_REFERENCES = 3;
+const MAX_REFERENCE_BYTES = 850 * 1024;
+const MAX_TOTAL_REFERENCE_BYTES = 2500 * 1024;
+
+async function compressReference(file) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use JPG, PNG or WebP images.");
+  if (typeof createImageBitmap !== "function") throw new Error("This browser cannot process image references. Try Chrome on Android.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  let quality = 0.82;
+  let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  while (blob && blob.size > MAX_REFERENCE_BYTES && quality > 0.48) {
+    quality -= 0.1;
+    blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  }
+  if (!blob || blob.size > MAX_REFERENCE_BYTES) throw new Error(file.name + " is too large after compression. Try a smaller screenshot.");
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read " + file.name));
+    reader.readAsDataURL(blob);
+  });
+  return { name: file.name, dataUrl, size: blob.size };
+}
+
+function renderReferences() {
+  const root = $("referencePreviews");
+  root.replaceChildren();
+  referenceImages.forEach((ref, index) => {
+    const card = document.createElement("div"); card.className = "ref";
+    const img = document.createElement("img"); img.src = ref.dataUrl; img.alt = "Reference " + (index + 1);
+    const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "Remove image");
+    remove.addEventListener("click", () => { referenceImages.splice(index, 1); renderReferences(); });
+    const caption = document.createElement("span"); caption.textContent = ref.name;
+    card.append(img, remove, caption); root.append(card);
+  });
+}
+
+$("referenceImages").addEventListener("change", async (event) => {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!files.length) return;
+  if (referenceImages.length + files.length > MAX_REFERENCES) {
+    message("planMessage", "You can attach up to 3 reference images.", "error"); return;
+  }
+  try {
+    for (const file of files) {
+      const ref = await compressReference(file);
+      const total = referenceImages.reduce((sum, item) => sum + item.size, 0) + ref.size;
+      if (total > MAX_TOTAL_REFERENCE_BYTES) throw new Error("Keep all compressed reference images under 2.5 MB total.");
+      referenceImages.push(ref);
+    }
+    renderReferences(); hideMessage("planMessage");
+  } catch (error) { message("planMessage", error.message, "error"); }
+});
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: "same-origin", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
   const data = await response.json().catch(() => ({}));
@@ -112,10 +181,13 @@ $("logout").addEventListener("click", async () => {
 });
 $("generate").addEventListener("click", async () => {
   const command = $("command").value.trim();
-  if (!command) { message("planMessage", "Write what you want Server Architect to create first.", "error"); return; }
+  if (!command && referenceImages.length === 0) { message("planMessage", "Describe your server goal or attach a reference image first.", "error"); return; }
   $("generate").disabled = true; $("generate").textContent = "Generating…"; hideMessage("planMessage"); $("previewPanel").classList.add("hidden");
   try {
-    const data = await api("/api/command/plan", { method: "POST", body: JSON.stringify({ command }) });
+    const data = await api("/api/command/plan", { method: "POST", body: JSON.stringify({
+      command,
+      images: referenceImages.map(({name, dataUrl}) => ({name, dataUrl}))
+    }) });
     currentPlan = data.preview;
     $("planSummary").textContent = data.summary;
     $("createCount").textContent = data.preview.createCount;
@@ -135,7 +207,7 @@ $("generate").addEventListener("click", async () => {
     $("approval").value = ""; $("apply").disabled = true; $("previewPanel").classList.remove("hidden");
     $("previewPanel").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { message("planMessage", error.message, "error"); }
-  finally { $("generate").disabled = false; $("generate").textContent = "✦ Generate preview"; }
+  finally { $("generate").disabled = false; $("generate").textContent = "✦ Analyse & generate architecture"; }
 });
 $("approval").addEventListener("input", () => { $("apply").disabled = $("approval").value.trim() !== "APPLY" || !currentPlan; });
 $("discard").addEventListener("click", () => { currentPlan = null; $("previewPanel").classList.add("hidden"); $("approval").value = ""; });
