@@ -29,3 +29,12 @@ Keep these on Render:
 - `AI_MODEL` = `gemini-3.6-flash`
 - `DASHBOARD_PASSWORD` = a strong password you choose
 - `DASHBOARD_SESSION_SECRET` = a separate long random secret (recommended)
+
+
+## Visual reference images and expert planning
+
+- The dashboard accepts up to 3 JPG, PNG or WebP reference images per planning request.
+- Images are resized/compressed in the browser (maximum 2.5 MB combined) and sent as temporary Gemini vision inputs. They are not uploaded to persistent storage or saved in the repository.
+- The Render API validates the image count, MIME types and data URLs. The AI is instructed to treat image text as visual reference material, not as instructions that override the system's safety rules.
+- The planner follows a professional Discord architecture checklist: server purpose, member journeys, category taxonomy, role hierarchy, least-privilege permissions, naming consistency, accessibility, moderation separation and future scalability.
+- The executor still only supports creating roles, categories, text channels and voice channels. Always inspect the preview; image analysis does not grant permission to make unsupported changes.
