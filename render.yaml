@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: server-architect
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: MANAGER_API_KEY
+        sync: false
+      - key: MANAGER_DISCORD_USER_IDS
+        sync: false
+      - key: NODE_ENV
+        value: production
