@@ -150,9 +150,22 @@ $("referenceImages").addEventListener("change", async (event) => {
   } catch (error) { message("planMessage", error.message, "error"); }
 });
 async function api(path, options = {}) {
-  const response = await fetch(path, { credentials: "same-origin", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Request failed.");
+  let response;
+  try {
+    response = await fetch(path, { credentials: "same-origin", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+  } catch (error) {
+    throw new Error("Could not reach the dashboard API. Check your internet connection and Vercel deployment, then try again.");
+  }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch {}
+  if (!response.ok) {
+    const detail = typeof data.error === "string" ? data.error : raw.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim().slice(0, 220);
+    throw new Error(detail || `Server returned HTTP ${response.status}. Check the Vercel function and Render logs.`);
+  }
+  if (!raw || !Object.keys(data).length) {
+    throw new Error(`The API returned an empty or invalid response (HTTP ${response.status}). Check the Vercel function logs.`);
+  }
   return data;
 }
 function message(id, text, kind = "") {
