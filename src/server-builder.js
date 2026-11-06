@@ -7,6 +7,19 @@ import { parseSafePermissions } from "./permissions.js";
 const NAME_RE = /^[\p{L}\p{N} _.-]{1,90}$/u;
 const TOPIC_RE = /^[\s\S]{0,900}$/;
 
+const DEFAULT_ROLE_COLOR = "#5865F2";
+
+function normalizeRoleColor(value) {
+  if (typeof value !== "string") return DEFAULT_ROLE_COLOR;
+  let color = value.trim();
+  if (/^0x[0-9a-f]{6}$/i.test(color)) color = "#" + color.slice(2);
+  else if (/^[0-9a-f]{6}$/i.test(color)) color = "#" + color;
+  else if (/^#[0-9a-f]{3}$/i.test(color)) {
+    color = "#" + color.slice(1).split("").map((digit) => digit + digit).join("");
+  }
+  return /^#[0-9a-f]{6}$/i.test(color) ? color.toUpperCase() : DEFAULT_ROLE_COLOR;
+}
+
 function cleanName(value, label = "name") {
   if (typeof value !== "string" || !NAME_RE.test(value.trim())) {
     throw new Error(`${label} must be 1-90 characters and use letters, numbers, spaces, dots, dashes or underscores`);
