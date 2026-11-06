@@ -261,7 +261,7 @@ async function downloadReferences(message) {
     const response = await fetch(attachment.url, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error("Could not download a reference photo. Please resend it.");
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 850 KB.");
+    if (bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 1 MB.");
     images.push({ dataUrl: "data:" + mime + ";base64," + bytes.toString("base64") });
   }
   return images;
@@ -293,7 +293,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return interaction.reply({ content: "Server Architect is online. Use /design to build from a prompt and reference photos.", ephemeral: true });
   }
   if (interaction.isChatInputCommand() && interaction.commandName === "design") {
-    if (config.managerUserIds.length && !config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
+    if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
     if (!interaction.guild || !interaction.channel) return interaction.reply({ content: "Use this command inside your Discord server.", ephemeral: true });
     const prompt = interaction.options.getString("prompt", true);
     await interaction.reply({ content: "🧠 I am analysing your brief. Now send up to 3 reference photos/screenshots as image attachments in this channel within 2 minutes. If you have no photos, send **skip**. I will show a preview before changing anything.", ephemeral: true });
