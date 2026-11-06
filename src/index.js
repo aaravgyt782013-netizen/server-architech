@@ -168,9 +168,27 @@ app.post("/api/command/plan", async (req, res) => {
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      console.error("AI provider error:", response.status, detail.slice(0, 1000));
-      return res.status(502).json({ error: "The AI planner could not generate a plan. Check your AI provider settings in Render." });
+      const rawDetail = await response.text();
+      let providerMessage = "";
+      try {
+        const parsedError = JSON.parse(rawDetail);
+        providerMessage = parsedError?.error?.message || parsedError?.message || "";
+      } catch {
+        providerMessage = rawDetail;
+      }
+      // Keep credentials and request payloads out of logs and Discord responses.
+      providerMessage = String(providerMessage).replace(/Bearer\\s+\\S+/gi, "Bearer [redacted]").replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
+      console.error("AI provider request failed:", { status: response.status, model: config.aiModel, message: providerMessage || "No provider error message returned." });
+      const hint = response.status === 401 || response.status === 403
+        ? "Gemini rejected the API key or its permissions. Check AI_API_KEY in Render."
+        : response.status === 404
+          ? "Gemini could not find the configured model or endpoint. Check AI_MODEL and AI_BASE_URL in Render."
+          : response.status === 429
+            ? "Gemini rate limit or quota reached. Check your Google AI Studio quota and billing."
+            : response.status === 400
+              ? "Gemini rejected the request format or model settings."
+              : "Gemini returned HTTP " + response.status + ".";
+      return res.status(502).json({ error: hint + (providerMessage ? " Details: " + providerMessage : "") });
     }
 
     const payload = await response.json();
