@@ -260,15 +260,15 @@ const commands = [
   new SlashCommandBuilder().setName("serverarchitect").setDescription("Check Server Architect bot status").toJSON()
 ];
 function studioEmbed(session, status = "Ready to configure") {
-  const photos = session.imageUrls.length ? session.imageUrls.map((url,i)=>(i+1)+". "+url).join("\n").slice(0,900) : "No reference links added yet.";
-  return new EmbedBuilder().setColor(0xe44757).setTitle("🏗️ Server Architect · Design Studio")
-    .setDescription("Configure your design below. Add a prompt, optional Discord image links, then generate a plan. **Nothing changes until you approve the preview.**")
+  const photos = session.imageUrls.length ? session.imageUrls.map((url,i)=>(i+1)+". "+url).join("\n").slice(0,900) : "_No reference links added yet._";
+  return new EmbedBuilder().setColor(0x5865f2).setAuthor({name:"SERVER ARCHITECT  /  DESIGN STUDIO"}).setTitle("🏗️ Build your Discord server")
+    .setDescription("Create a polished community layout with a guided workflow. Add your brief and optional visual references, then generate a plan.\n\n> **Nothing is changed until you approve the final preview.**")
     .addFields(
-      {name:"📝 Design prompt",value:session.prompt ? session.prompt.slice(0,900) : "_Not set — use Edit prompt._"},
-      {name:"🖼️ Reference photos",value:photos},
-      {name:"⏱️ Estimated time",value:"About **30–90 seconds** after generation starts; complex requests or slow AI responses may take longer."},
-      {name:"📍 Current status",value:String(status).slice(0,950)}
-    ).setFooter({text:"Up to 3 Discord image links · JPG, PNG or WebP · Approval required"});
+      {name:"01  ·  DESIGN BRIEF",value:session.prompt ? session.prompt.slice(0,900) : "_Not added yet — select **Edit prompt**._"},
+      {name:"02  ·  REFERENCE IMAGES",value:photos},
+      {name:"03  ·  GENERATION",value:"Usually **30–90 seconds** after starting."},
+      {name:"CURRENT STATUS",value:"`"+String(status).slice(0,900)+"`"}
+    ).setFooter({text:"SERVER ARCHITECT  •  Up to 3 JPG / PNG / WebP links  •  Approval required"}).setTimestamp();
 }
 function studioRows(id) {
   return [
@@ -319,11 +319,11 @@ async function downloadImageLinks(urls) {
 }
 function buildPreviewEmbed(data) {
   const p=data.preview;
-  const lines=p.operations.slice(0,30).map((op,i)=>(i+1)+". "+(op.type==="create_role"?"👤":op.type==="create_category"?"📁":op.type==="create_voice_channel"?"🔊":"💬")+" **"+op.name+"** — "+(op.status==="will_create"?"🟢 Create":"⚪ Skip (already exists)"));
-  return new EmbedBuilder().setColor(0xe44757).setTitle("✨ Server Architect · Implementation preview")
-    .setDescription((String(data.summary||"Review the proposed structure.").slice(0,700)+"\n\n"+lines.join("\n")).slice(0,4000))
-    .addFields({name:"Will create",value:String(p.createCount),inline:true},{name:"Will skip",value:String(p.skippedCount),inline:true},{name:"Total",value:String(p.operationCount),inline:true},{name:"Estimated implementation",value:"Usually **10–60 seconds** after approval, depending on Discord rate limits."})
-    .setFooter({text:"Nothing has changed yet. Only your approval will apply this plan."});
+  const lines=p.operations.slice(0,30).map((op,i)=>(i+1)+". "+(op.type==="create_role"?"👤":op.type==="create_category"?"📁":op.type==="create_voice_channel"?"🔊":"💬")+" **"+op.name+"** — "+(op.status==="will_create"?"🟢 Create":"⚪ Skip · already exists"));
+  return new EmbedBuilder().setColor(0x57f287).setAuthor({name:"SERVER ARCHITECT  /  PLAN REVIEW"}).setTitle("✨ Your server blueprint is ready")
+    .setDescription("**DESIGN SUMMARY**\n"+String(data.summary||"Review the proposed structure.").slice(0,650)+"\n\n**PROPOSED CHANGES**\n"+(lines.join("\n")||"_No operations to display._").slice(0,3000))
+    .addFields({name:"🟢 CREATE",value:"**"+p.createCount+"**",inline:true},{name:"⚪ SKIP",value:"**"+p.skippedCount+"**",inline:true},{name:"📦 TOTAL",value:"**"+p.operationCount+"**",inline:true},{name:"IMPLEMENTATION",value:"Usually **10–60 seconds** after approval. Discord rate limits may affect timing."})
+    .setFooter({text:"Review carefully  •  No changes made yet  •  Approval required"}).setTimestamp();
 }
 async function requestPlan(prompt,images){
   const response=await fetch("http://127.0.0.1:"+config.port+"/api/command/plan",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+config.apiKey},body:JSON.stringify({command:prompt,images}),signal:AbortSignal.timeout(70000)});
