@@ -18,9 +18,9 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: AI_BASE_URL
-        value: https://generativelanguage.googleapis.com/v1beta/openai
+        value: https://api.groq.com/openai/v1
       - key: AI_MODEL
-        value: gemini-3.6-flash
+        value: qwen/qwen3.8-27b
       - key: MANAGER_DISCORD_USER_IDS
         sync: false
       - key: NODE_ENV
