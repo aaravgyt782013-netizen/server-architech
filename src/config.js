@@ -13,8 +13,8 @@ export const config = Object.freeze({
   guildId: process.env.GUILD_ID.trim(),
   apiKey: process.env.MANAGER_API_KEY.trim(),
   aiApiKey: (process.env.AI_API_KEY || "").trim(),
-  aiBaseUrl: (process.env.AI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").trim().replace(/\/+$/, ""),
-  aiModel: (process.env.AI_MODEL || "gemini-3.6-flash").trim(),
+  aiBaseUrl: (process.env.AI_BASE_URL || "https://api.groq.com/openai/v1").trim().replace(/\/+$/, ""),
+  aiModel: (process.env.AI_MODEL || "qwen/qwen3.8-27b").trim(),
   port: Number(process.env.PORT || 10000),
   nodeEnv: process.env.NODE_ENV || "development",
   managerUserIds: (process.env.MANAGER_DISCORD_USER_IDS || "")
