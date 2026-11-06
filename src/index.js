@@ -150,26 +150,39 @@ app.post("/api/command/plan", async (req, res) => {
       image_url: { url: image.dataUrl }
     }))];
 
-    const response = await fetch(`${config.aiBaseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.aiApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: config.aiModel,
-        temperature: 0.2,
-        // Keep below Groq's 1,000 output-tokens-per-minute tier limit.
-        // A smaller cap also prevents oversized plans from exhausting the quota.
-        max_completion_tokens: 850,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent }
-        ]
-      }),
-      signal: AbortSignal.timeout(60000)
+    const requestBody = JSON.stringify({
+      model: config.aiModel,
+      temperature: 0.2,
+      // Keep below Groq's 1,000 output-tokens-per-minute tier limit.
+      max_completion_tokens: 850,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ]
     });
+
+    // Groq may temporarily return 503 while a model is at capacity.
+    // Retry transient overload/rate-limit responses with bounded exponential backoff.
+    let response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(`${config.aiBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${config.aiApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: requestBody,
+        signal: AbortSignal.timeout(60000)
+      });
+      if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 2) break;
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 10000)
+        : 1500 * (2 ** attempt);
+      console.warn(`AI provider returned HTTP ${response.status}; retrying in ${delayMs}ms (attempt ${attempt + 2}/3).`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
 
     if (!response.ok) {
       const rawDetail = await response.text();
