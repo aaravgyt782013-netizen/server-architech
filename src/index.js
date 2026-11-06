@@ -345,15 +345,15 @@ client.on(Events.InteractionCreate,async interaction=>{
   if(interaction.isChatInputCommand()&&interaction.commandName==="design"){
     if(!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({content:"You are not allowed to use this command.",ephemeral:true});
     if(!interaction.guild||!interaction.channel) return interaction.reply({content:"Use this command inside your Discord server.",ephemeral:true});
-    const id=interaction.id; const session={userId:interaction.user.id,guildId:interaction.guildId,prompt:"",imageUrls:[],createdAt:Date.now()};
+    const id=interaction.id; const session={userId:interaction.user.id,guildId:interaction.guildId,channelId:interaction.channelId,messageId:null,prompt:"",imageUrls:[],createdAt:Date.now()};
     designSessions.set(id,session);
-    return interaction.reply({embeds:[studioEmbed(session)],components:studioRows(id),ephemeral:true});
+    await interaction.reply({embeds:[studioEmbed(session)],components:studioRows(id),ephemeral:false}); session.messageId=(await interaction.fetchReply()).id; return;
   }
   if(interaction.isModalSubmit()&&(interaction.customId.startsWith("sa_prompt_modal:")||interaction.customId.startsWith("sa_photos_modal:"))){
     const parts=interaction.customId.split(":"); const kind=parts[0]; const id=parts[1]; const session=designSessions.get(id);
     if(!session||session.userId!==interaction.user.id||session.guildId!==interaction.guildId) return interaction.reply({content:"This design session expired. Run /design again.",ephemeral:true});
-    if(kind==="sa_prompt_modal"){session.prompt=interaction.fields.getTextInputValue("prompt").trim();return interaction.reply({embeds:[studioEmbed(session,"✅ Prompt saved. Add references or generate your preview.")],components:studioRows(id),ephemeral:true});}
-    try{session.imageUrls=parseDiscordImageLinks(interaction.fields.getTextInputValue("photos"));return interaction.reply({embeds:[studioEmbed(session,"✅ Reference links saved. Links will be checked when you generate.")],components:studioRows(id),ephemeral:true});}
+    if(kind==="sa_prompt_modal"){session.prompt=interaction.fields.getTextInputValue("prompt").trim();const ch=await client.channels.fetch(session.channelId);const msg=await ch.messages.fetch(session.messageId);await msg.edit({embeds:[studioEmbed(session,"✅ Brief saved · Ready to generate.")],components:studioRows(id)});return interaction.reply({content:"✅ Updated the public Design Studio message.",ephemeral:true});}
+    try{session.imageUrls=parseDiscordImageLinks(interaction.fields.getTextInputValue("photos"));const ch=await client.channels.fetch(session.channelId);const msg=await ch.messages.fetch(session.messageId);await msg.edit({embeds:[studioEmbed(session,"✅ Reference links saved.")],components:studioRows(id)});return interaction.reply({content:"✅ Updated the public Design Studio message.",ephemeral:true});}
     catch(error){return interaction.reply({content:"❌ "+error.message,ephemeral:true});}
   }
   if(interaction.isButton()&&interaction.customId.startsWith("sa_")){
