@@ -15,10 +15,6 @@ services:
         sync: false
       - key: MANAGER_API_KEY
         sync: false
-      - key: DASHBOARD_PASSWORD
-        sync: false
-      - key: DASHBOARD_SESSION_SECRET
-        sync: false
       - key: AI_API_KEY
         sync: false
       - key: AI_BASE_URL
