@@ -158,9 +158,8 @@ app.post("/api/command/plan", async (req, res) => {
       body: JSON.stringify({
         model: config.aiModel,
         temperature: 0.2,
-        // Keep the completion budget bounded. OpenRouter pre-checks the
-        // maximum requested output against available credits before generation.
-        max_tokens: 4096,
+        // Groq recommends max_completion_tokens for bounded output.
+        max_completion_tokens: 4096,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -388,7 +387,7 @@ client.on(Events.InteractionCreate,async interaction=>{
       await interaction.update({embeds:[studioEmbed(session,"⏳ Validating reference links…")],components:[]});
       try{
         const images=await downloadImageLinks(session.imageUrls);
-        await interaction.editReply({embeds:[studioEmbed(session,"🧠 Sending prompt and "+images.length+" reference photo(s) to Gemini…")]});
+        await interaction.editReply({embeds:[studioEmbed(session,"🧠 Sending prompt and "+images.length+" reference photo(s) to Groq…")]});
         await interaction.editReply({embeds:[studioEmbed(session,"🔍 Analysing requirements and visual references…")]});
         const data=await requestPlan(session.prompt,images);
         await interaction.editReply({embeds:[studioEmbed(session,"🧩 Plan generated. Preparing implementation preview…")]});
