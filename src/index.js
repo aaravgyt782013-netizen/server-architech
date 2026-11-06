@@ -127,7 +127,8 @@ app.post("/api/command/plan", async (req, res) => {
       "If essential requirements are unclear, choose conservative defaults and state assumptions. Prefer a complete, logically grouped structure over a random list of channels.",
       "Be honest about implementation limits: this executor can ONLY create roles, categories, text channels and voice channels. It cannot configure channel permission overwrites, role positions, onboarding, automod, tickets, bots, webhooks, moderation workflows, message content or role assignments. Never claim those unsupported features will be configured.",
       "Return a JSON object with exactly these top-level keys: summary and operations. summary should briefly explain the architecture and assumptions.",
-      "operations must contain 0 to 30 supported operations, in dependency order. Create categories before channels that belong inside them.",
+      "operations must contain 0 to 20 supported operations, in dependency order. Create categories before channels that belong inside them.",
+      "Keep the JSON compact: use short summaries, concise topics, and only essential operations. Stay within the model output budget; do not write long explanations.",
       "Supported operations only:",
       "1) create_role: {type, name, color, hoist, mentionable, permissions}",
       "2) create_category: {type, name}",
@@ -158,8 +159,9 @@ app.post("/api/command/plan", async (req, res) => {
       body: JSON.stringify({
         model: config.aiModel,
         temperature: 0.2,
-        // Groq recommends max_completion_tokens for bounded output.
-        max_completion_tokens: 4096,
+        // Keep below Groq's 1,000 output-tokens-per-minute tier limit.
+        // A smaller cap also prevents oversized plans from exhausting the quota.
+        max_completion_tokens: 850,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -181,17 +183,20 @@ app.post("/api/command/plan", async (req, res) => {
       // Keep credentials and request payloads out of logs and Discord responses.
       providerMessage = String(providerMessage).replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").replace(/[\r\n\t]+/g, " ").slice(0, 500);
       console.error("AI provider request failed:", { status: response.status, model: config.aiModel, message: providerMessage || "No provider error message returned." });
-      const hint = response.status === 401 || response.status === 403
-        ? "The AI provider rejected the API key or its permissions. Check AI_API_KEY in Render."
-        : response.status === 402
-          ? "The AI provider cannot cover this request's token budget. The bot now caps output at 4096 tokens; if this persists, use a free model variant or check your provider credits and key limits."
-          : response.status === 404
-            ? "The AI provider could not find the configured model or endpoint. Check AI_MODEL and AI_BASE_URL in Render."
-            : response.status === 429
-              ? "The AI provider rate limit or quota was reached. Wait and retry, or configure a fallback model."
-              : response.status === 400
-                ? "The AI provider rejected the request format or model settings."
-                : "The AI provider returned HTTP " + response.status + ".";
+      const isOutputTokenLimit = /output tokens per minute|OTPM|expected output tokens exceed/i.test(providerMessage);
+      const hint = isOutputTokenLimit
+        ? "This Groq model's output-token-per-minute limit is too low for the requested plan. The bot now limits each response to 850 tokens; retry after deploying this update."
+        : response.status === 401 || response.status === 403
+          ? "The AI provider rejected the API key or its permissions. Check AI_API_KEY in Render."
+          : response.status === 402
+            ? "The AI provider cannot cover this request's token budget. Check your provider credits and key limits."
+            : response.status === 404
+              ? "The AI provider could not find the configured model or endpoint. Check AI_MODEL and AI_BASE_URL in Render."
+              : response.status === 429
+                ? "The AI provider rate limit or quota was reached. Wait and retry, or reduce generation size."
+                : response.status === 400
+                  ? "The AI provider rejected the request format or model settings."
+                  : "The AI provider returned HTTP " + response.status + ".";
       return res.status(502).json({ error: hint + (providerMessage ? " Details: " + providerMessage : "") });
     }
 
