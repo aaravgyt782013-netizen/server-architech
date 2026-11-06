@@ -2,7 +2,7 @@
   "name": "server-architect",
   "version": "1.0.0",
   "private": true,
-  "description": "A secure Discord server setup assistant with a ChatGPT Actions API.",
+  "description": "A Discord-first AI server architect with reference-photo planning and approval-gated implementation.",
   "type": "module",
   "engines": {
     "node": ">=20"
