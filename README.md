@@ -5,7 +5,7 @@ Server Architect is controlled from Discord. There is no web dashboard.
 ## Workflow
 
 1. Run `/design prompt:<describe your server>` in your Discord server.
-2. The bot asks you to upload up to **3 reference screenshots/photos** in the channel. Send the images as attachments within 2 minutes, or send `skip` if you have no references.
+2. The bot asks you to upload up to **3 reference screenshots/photos** in the channel. Attach the images in one message within 2 minutes. If you have no photos, simply wait; the bot continues with the written brief after 2 minutes.
 3. The bot sends your complete written brief and images to the configured AI model.
 4. The bot replies with a structured preview showing roles, categories and channels it proposes to create, plus what will be skipped.
 5. Review the preview and press **Approve & implement** or **Cancel**. Only the user who started the design can approve it. Previews expire after 15 minutes.
