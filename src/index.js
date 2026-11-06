@@ -252,11 +252,12 @@ async function requestPlan(prompt, images) {
 }
 
 async function downloadReferences(message) {
-  const attachments = [...message.attachments.values()].slice(0, 3);
+  const attachments = [...message.attachments.values()];
+  if (attachments.length > MAX_REFERENCE_IMAGES) throw new Error("Please send no more than 3 reference photos in one message.");
   const images = [];
   for (const attachment of attachments) {
     const mime = attachment.contentType?.split(";")[0];
-    if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) continue;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error("Reference uploads must be JPG, PNG or WebP images.");
     if (attachment.size > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 1 MB. Compress it and resend.");
     const response = await fetch(attachment.url, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error("Could not download a reference photo. Please resend it.");
