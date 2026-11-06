@@ -10,7 +10,10 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder
+  EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } from "discord.js";
 import { config } from "./config.js";
 import { applyPlan, checkBotPermissions, previewPlan, validatePlan } from "./server-builder.js";
@@ -233,107 +236,151 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
+const designSessions = new Map();
 const commands = [
-  new SlashCommandBuilder().setName("design").setDescription("Design a Discord server from your prompt and reference photos")
-    .addStringOption(option => option.setName("prompt").setDescription("Describe exactly what you want built").setRequired(true).setMaxLength(4000)).toJSON(),
+  new SlashCommandBuilder().setName("design").setDescription("Open the Server Architect design studio").toJSON(),
   new SlashCommandBuilder().setName("serverarchitect").setDescription("Check Server Architect bot status").toJSON()
 ];
-
-async function requestPlan(prompt, images) {
-  const response = await fetch("http://127.0.0.1:" + config.port + "/api/command/plan", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + config.apiKey }, body: JSON.stringify({ command: prompt, images }), signal: AbortSignal.timeout(70000) });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "AI planner failed (HTTP " + response.status + ").");
-  return data;
+function studioEmbed(session, status = "Ready to configure") {
+  const photos = session.imageUrls.length ? session.imageUrls.map((url,i)=>(i+1)+". "+url).join("\n").slice(0,900) : "No reference links added yet.";
+  return new EmbedBuilder().setColor(0xe44757).setTitle("🏗️ Server Architect · Design Studio")
+    .setDescription("Configure your design below. Add a prompt, optional Discord image links, then generate a plan. **Nothing changes until you approve the preview.**")
+    .addFields(
+      {name:"📝 Design prompt",value:session.prompt ? session.prompt.slice(0,900) : "_Not set — use Edit prompt._"},
+      {name:"🖼️ Reference photos",value:photos},
+      {name:"⏱️ Estimated time",value:"About **30–90 seconds** after generation starts; complex requests or slow AI responses may take longer."},
+      {name:"📍 Current status",value:status}
+    ).setFooter({text:"Up to 3 Discord image links · JPG, PNG or WebP · Approval required"});
 }
-
-async function downloadReferences(message) {
-  const attachments = [...message.attachments.values()];
-  if (attachments.length > MAX_REFERENCE_IMAGES) throw new Error("Please send no more than 3 reference photos in one message.");
-  const images = [];
-  for (const attachment of attachments) {
-    const mime = attachment.contentType?.split(";")[0];
-    if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error("Reference uploads must be JPG, PNG or WebP images.");
-    if (attachment.size > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 1 MB. Compress it and resend.");
-    const response = await fetch(attachment.url, { signal: AbortSignal.timeout(15000) });
-    if (!response.ok) throw new Error("Could not download a reference photo. Please resend it.");
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 1 MB.");
-    images.push({ dataUrl: "data:" + mime + ";base64," + bytes.toString("base64") });
+function studioRows(id) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("sa_prompt:"+id).setLabel("Edit prompt").setStyle(ButtonStyle.Primary).setEmoji("📝"),
+      new ButtonBuilder().setCustomId("sa_photos:"+id).setLabel("Add photo links").setStyle(ButtonStyle.Secondary).setEmoji("🖼️")
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("sa_generate:"+id).setLabel("Generate preview").setStyle(ButtonStyle.Success).setEmoji("✨"),
+      new ButtonBuilder().setCustomId("sa_studio_cancel:"+id).setLabel("Cancel").setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+function promptModal(id) {
+  return new ModalBuilder().setCustomId("sa_prompt_modal:"+id).setTitle("Describe your Discord server").addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("prompt").setLabel("What should I design?").setStyle(TextInputStyle.Paragraph).setPlaceholder("Describe roles, categories, channels, style and requirements…").setRequired(true).setMaxLength(4000))
+  );
+}
+function photosModal(id) {
+  return new ModalBuilder().setCustomId("sa_photos_modal:"+id).setTitle("Add reference photo links").addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("photos").setLabel("Discord image links (one per line, max 3)").setStyle(TextInputStyle.Paragraph).setPlaceholder("https://cdn.discordapp.com/attachments/…").setRequired(false).setMaxLength(3000))
+  );
+}
+function parseDiscordImageLinks(value) {
+  const links=value.split(/\s+/).map(v=>v.trim()).filter(Boolean);
+  if(links.length>MAX_REFERENCE_IMAGES) throw new Error("Add no more than 3 image links.");
+  return links.map((raw,i)=>{
+    let url; try {url=new URL(raw);} catch {throw new Error("Photo link "+(i+1)+" is not a valid URL.");}
+    if(url.protocol!=="https:" || !["cdn.discordapp.com","media.discordapp.net"].includes(url.hostname)) throw new Error("Photo "+(i+1)+" must be an HTTPS Discord CDN link (cdn.discordapp.com or media.discordapp.net).");
+    return url.toString();
+  });
+}
+async function downloadImageLinks(urls) {
+  const images=[];
+  for(let i=0;i<urls.length;i++){
+    const response=await fetch(urls[i],{redirect:"error",signal:AbortSignal.timeout(15000)});
+    if(!response.ok) throw new Error("Photo link "+(i+1)+" could not be opened (HTTP "+response.status+"). Check its permissions or upload it again.");
+    const mime=(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
+    if(!["image/jpeg","image/png","image/webp"].includes(mime)) throw new Error("Photo link "+(i+1)+" is not JPG, PNG or WebP.");
+    if(Number(response.headers.get("content-length")||0)>MAX_REFERENCE_IMAGE_BYTES) throw new Error("Photo "+(i+1)+" exceeds the 1 MB limit.");
+    const bytes=Buffer.from(await response.arrayBuffer());
+    if(!bytes.length||bytes.length>MAX_REFERENCE_IMAGE_BYTES) throw new Error("Photo "+(i+1)+" is empty or exceeds the 1 MB limit.");
+    const valid=mime==="image/jpeg" ? bytes[0]===255&&bytes[1]===216&&bytes[2]===255 : mime==="image/png" ? bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
+    if(!valid) throw new Error("Photo "+(i+1)+" has an invalid image signature.");
+    images.push({dataUrl:"data:"+mime+";base64,"+bytes.toString("base64")});
   }
   return images;
 }
-
 function buildPreviewEmbed(data) {
-  const preview = data.preview;
-  const lines = preview.operations.slice(0, 35).map((op, index) => {
-    const icon = op.type === "create_role" ? "👤" : op.type === "create_category" ? "📁" : op.type === "create_voice_channel" ? "🔊" : "💬";
-    return (index + 1) + ". " + icon + " **" + op.name + "** — " + (op.status === "will_create" ? "🟢 Create" : "⚪ Skip (already exists)");
-  });
-  const summary = String(data.summary || "Review the proposed structure.").slice(0, 650);
-  const description = (summary + "\n\n" + lines.join("\n")).slice(0, 4000);
-  return new EmbedBuilder().setColor(0xe44757).setTitle("Server Architect · Implementation preview").setDescription(description)
-    .addFields({ name: "Will create", value: String(preview.createCount), inline: true }, { name: "Will skip", value: String(preview.skippedCount), inline: true }, { name: "Total", value: String(preview.operationCount), inline: true })
-    .setFooter({ text: "Nothing has changed yet. Only your approval will apply this plan." });
+  const p=data.preview;
+  const lines=p.operations.slice(0,30).map((op,i)=>(i+1)+". "+(op.type==="create_role"?"👤":op.type==="create_category"?"📁":op.type==="create_voice_channel"?"🔊":"💬")+" **"+op.name+"** — "+(op.status==="will_create"?"🟢 Create":"⚪ Skip (already exists)"));
+  return new EmbedBuilder().setColor(0xe44757).setTitle("✨ Server Architect · Implementation preview")
+    .setDescription((String(data.summary||"Review the proposed structure.").slice(0,700)+"\n\n"+lines.join("\n")).slice(0,4000))
+    .addFields({name:"Will create",value:String(p.createCount),inline:true},{name:"Will skip",value:String(p.skippedCount),inline:true},{name:"Total",value:String(p.operationCount),inline:true},{name:"Estimated implementation",value:"Usually **10–60 seconds** after approval, depending on Discord rate limits."})
+    .setFooter({text:"Nothing has changed yet. Only your approval will apply this plan."});
 }
-async function deliverPreview(interaction, prompt, images) {
-  if (images.length) await interaction.followUp({ content: "📸 Received " + images.length + " reference photo(s). Sending your prompt and images to the AI architect…", ephemeral: true });
-  else await interaction.followUp({ content: "No reference photos received. I am building the preview from your written brief only…", ephemeral: true });
-  const data = await requestPlan(prompt, images);
-  const key = interaction.user.id + ":" + Date.now() + ":" + Math.random().toString(36).slice(2);
-  pendingPlans.set(key, { userId: interaction.user.id, guildId: interaction.guildId, operations: data.preview.operations.map(({ status, ...op }) => op), createdAt: Date.now() });
-  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("sa_apply:" + key).setLabel("Approve & implement").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId("sa_cancel:" + key).setLabel("Cancel").setStyle(ButtonStyle.Secondary));
-  await interaction.followUp({ embeds: [buildPreviewEmbed(data)], components: [row], ephemeral: true });
+async function requestPlan(prompt,images){
+  const response=await fetch("http://127.0.0.1:"+config.port+"/api/command/plan",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+config.apiKey},body:JSON.stringify({command:prompt,images}),signal:AbortSignal.timeout(70000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(data.error||"AI planner failed (HTTP "+response.status+").");
+  return data;
 }
-
-client.once(Events.ClientReady, async (readyClient) => {
-  lastReadyAt = new Date().toISOString();
-  console.log(`Discord bot ready as ${readyClient.user.tag}`);
-  try {
-    const rest = new REST({ version: "10" }).setToken(config.token);
-    await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), { body: commands });
-    console.log("Registered /design and /serverarchitect commands");
-  } catch (error) {
-    console.error("Could not register slash command:", error.message);
-  }
+client.once(Events.ClientReady,async readyClient=>{
+  lastReadyAt=new Date().toISOString(); console.log("Discord bot ready as "+readyClient.user.tag);
+  try {const rest=new REST({version:"10"}).setToken(config.token); await rest.put(Routes.applicationGuildCommands(config.clientId,config.guildId),{body:commands}); console.log("Registered /design and /serverarchitect commands");}
+  catch(error){console.error("Could not register slash command:",error);}
 });
-
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isChatInputCommand() && interaction.commandName === "serverarchitect") {
-    if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
-    return interaction.reply({ content: "Server Architect is online. Use /design to build from a prompt and reference photos.", ephemeral: true });
+client.on(Events.InteractionCreate,async interaction=>{
+ try{
+  if(interaction.isChatInputCommand()&&interaction.commandName==="serverarchitect"){
+    if(!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({content:"You are not allowed to use this command.",ephemeral:true});
+    return interaction.reply({content:"Server Architect is online. Use /design to open the design studio.",ephemeral:true});
   }
-  if (interaction.isChatInputCommand() && interaction.commandName === "design") {
-    if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
-    if (!interaction.guild || !interaction.channel) return interaction.reply({ content: "Use this command inside your Discord server.", ephemeral: true });
-    const prompt = interaction.options.getString("prompt", true);
-    await interaction.reply({ content: "🧠 I am analysing your brief. Attach up to 3 reference photos/screenshots in one message in this channel within 2 minutes. If you have no photos, do nothing — I will continue using your written brief when the timer ends. I will show a preview before changing anything.", ephemeral: true });
-    const collector = interaction.channel.createMessageCollector({ time: 120000, max: 1, filter: message => message.author.id === interaction.user.id && message.attachments.size > 0 });
-    collector.on("collect", async message => {
-      try { const images = await downloadReferences(message); await deliverPreview(interaction, prompt, images); }
-      catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
-    });
-    collector.on("end", async collected => {
-      if (!collected.size) {
-        try { await deliverPreview(interaction, prompt, []); }
-        catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
-      }
-    });
-    return;
+  if(interaction.isChatInputCommand()&&interaction.commandName==="design"){
+    if(!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({content:"You are not allowed to use this command.",ephemeral:true});
+    if(!interaction.guild||!interaction.channel) return interaction.reply({content:"Use this command inside your Discord server.",ephemeral:true});
+    const id=interaction.id; const session={userId:interaction.user.id,guildId:interaction.guildId,prompt:"",imageUrls:[],createdAt:Date.now()};
+    designSessions.set(id,session);
+    return interaction.reply({embeds:[studioEmbed(session)],components:studioRows(id),ephemeral:true});
   }
-  if (interaction.isButton() && (interaction.customId.startsWith("sa_apply:") || interaction.customId.startsWith("sa_cancel:"))) {
-    const parts = interaction.customId.split(":"); const action = parts[0]; const key = parts.slice(1).join(":"); const pending = pendingPlans.get(key);
-    if (!pending || pending.userId !== interaction.user.id || pending.guildId !== interaction.guildId) return interaction.reply({ content: "This preview is not yours or has expired. Run /design again.", ephemeral: true });
-    if (Date.now() - pending.createdAt > 900000) { pendingPlans.delete(key); return interaction.update({ content: "This preview expired. Run /design again.", embeds: [], components: [] }); }
-    if (action === "sa_cancel") { pendingPlans.delete(key); return interaction.update({ content: "❎ Plan cancelled. No Discord changes were made.", embeds: [], components: [] }); }
-    await interaction.deferUpdate();
-    try {
-      const response = await fetch("http://127.0.0.1:" + config.port + "/api/apply", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + config.apiKey }, body: JSON.stringify({ operations: pending.operations, confirm: "APPLY_SERVER_PLAN" }), signal: AbortSignal.timeout(60000) });
-      const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Apply failed (HTTP " + response.status + ").");
-      pendingPlans.delete(key); const rows = result.result.results || []; const created = rows.filter(item => item.result === "created").length; const skipped = rows.filter(item => item.result === "skipped_existing").length; const failed = rows.filter(item => item.result === "failed");
-      const failureText = failed.length ? "\n\nFailed: " + failed.map(item => item.name + ": " + item.error).join("; ").slice(0, 900) : "";
-      await interaction.editReply({ content: "✅ Implementation finished\nCreated: **" + created + "** · Skipped: **" + skipped + "** · Failed: **" + failed.length + "**" + failureText, embeds: [], components: [] });
-    } catch (error) { await interaction.followUp({ content: "❌ Implementation failed: " + error.message + ". Check the Discord server before retrying.", ephemeral: true }).catch(() => {}); }
+  if(interaction.isModalSubmit()&&(interaction.customId.startsWith("sa_prompt_modal:")||interaction.customId.startsWith("sa_photos_modal:"))){
+    const parts=interaction.customId.split(":"); const kind=parts[0]; const id=parts[1]; const session=designSessions.get(id);
+    if(!session||session.userId!==interaction.user.id||session.guildId!==interaction.guildId) return interaction.reply({content:"This design session expired. Run /design again.",ephemeral:true});
+    if(kind==="sa_prompt_modal"){session.prompt=interaction.fields.getTextInputValue("prompt").trim();return interaction.reply({embeds:[studioEmbed(session,"✅ Prompt saved. Add references or generate your preview.")],components:studioRows(id),ephemeral:true});}
+    try{session.imageUrls=parseDiscordImageLinks(interaction.fields.getTextInputValue("photos"));return interaction.reply({embeds:[studioEmbed(session,"✅ Reference links saved. Links will be checked when you generate.")],components:studioRows(id),ephemeral:true});}
+    catch(error){return interaction.reply({content:"❌ "+error.message,ephemeral:true});}
   }
+  if(interaction.isButton()&&interaction.customId.startsWith("sa_")){
+    const parts=interaction.customId.split(":");const action=parts[0];const id=parts.slice(1).join(":");
+    if(action==="sa_apply"||action==="sa_cancel"){
+      const pending=pendingPlans.get(id);
+      if(!pending||pending.userId!==interaction.user.id||pending.guildId!==interaction.guildId)return interaction.reply({content:"This preview is not yours or has expired. Run /design again.",ephemeral:true});
+      if(Date.now()-pending.createdAt>900000){pendingPlans.delete(id);return interaction.update({content:"This preview expired. Run /design again.",embeds:[],components:[]});}
+      if(action==="sa_cancel"){pendingPlans.delete(id);return interaction.update({content:"❎ Plan cancelled. No Discord changes were made.",embeds:[],components:[]});}
+      await interaction.update({content:"⏳ Applying approved changes…",embeds:[],components:[]});
+      try{
+        const response=await fetch("http://127.0.0.1:"+config.port+"/api/apply",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+config.apiKey},body:JSON.stringify({operations:pending.operations,confirm:"APPLY_SERVER_PLAN"}),signal:AbortSignal.timeout(60000)});
+        const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||"Apply failed (HTTP "+response.status+").");
+        pendingPlans.delete(id);const rows=result.result.results||[];const created=rows.filter(x=>x.result==="created").length;const skipped=rows.filter(x=>x.result==="skipped_existing").length;const failed=rows.filter(x=>x.result==="failed");
+        await interaction.editReply({content:"✅ **Implementation finished**\nCreated: **"+created+"** · Skipped: **"+skipped+"** · Failed: **"+failed.length+"**"+(failed.length?"\n"+failed.map(x=>x.name+": "+x.error).join("; ").slice(0,900):"")});
+      }catch(error){await interaction.editReply({content:"❌ Implementation failed: "+error.message+". Check the server before retrying."});}
+      return;
+    }
+    const session=designSessions.get(id);
+    if(!session||session.userId!==interaction.user.id||session.guildId!==interaction.guildId)return interaction.reply({content:"This design session expired or belongs to another user. Run /design again.",ephemeral:true});
+    if(Date.now()-session.createdAt>1800000){designSessions.delete(id);return interaction.reply({content:"This design session expired. Run /design again.",ephemeral:true});}
+    if(action==="sa_prompt")return interaction.showModal(promptModal(id));
+    if(action==="sa_photos")return interaction.showModal(photosModal(id));
+    if(action==="sa_studio_cancel"){designSessions.delete(id);return interaction.update({content:"Design cancelled. No Discord changes were made.",embeds:[],components:[]});}
+    if(action==="sa_generate"){
+      if(!session.prompt.trim())return interaction.reply({content:"Add your design prompt first using **Edit prompt**.",ephemeral:true});
+      await interaction.update({embeds:[studioEmbed(session,"⏳ Validating reference links…")],components:[]});
+      try{
+        const images=await downloadImageLinks(session.imageUrls);
+        await interaction.editReply({embeds:[studioEmbed(session,"🧠 Sending prompt and "+images.length+" reference photo(s) to Gemini…")]});
+        await interaction.editReply({embeds:[studioEmbed(session,"🔍 Analysing requirements and visual references…")]});
+        const data=await requestPlan(session.prompt,images);
+        await interaction.editReply({embeds:[studioEmbed(session,"🧩 Plan generated. Preparing implementation preview…")]});
+        pendingPlans.set(id,{userId:interaction.user.id,guildId:interaction.guildId,operations:data.preview.operations.map(({status,...op})=>op),createdAt:Date.now()});
+        const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("sa_apply:"+id).setLabel("Approve & implement").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId("sa_cancel:"+id).setLabel("Cancel").setStyle(ButtonStyle.Secondary));
+        designSessions.delete(id);return interaction.editReply({embeds:[buildPreviewEmbed(data)],components:[row]});
+      }catch(error){console.error("Design generation failed:",error);return interaction.editReply({embeds:[studioEmbed(session,"❌ Failed: "+error.message)],components:studioRows(id)});}
+    }
+  }
+ }catch(error){
+  console.error("Interaction handler failed:",error);
+  const msg="❌ Something went wrong: "+(error.message||"Unknown error")+". Please run /design again if needed.";
+  if(interaction.deferred||interaction.replied)await interaction.followUp({content:msg,ephemeral:true}).catch(()=>{});
+  else await interaction.reply({content:msg,ephemeral:true}).catch(()=>{});
+ }
 });
 const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`Server Architect bot API listening on port ${config.port}; Discord is the interface.`);
