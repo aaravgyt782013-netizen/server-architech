@@ -247,7 +247,7 @@ app.post("/api/command/plan", async (req, res) => {
     const payload = await response.json();
     const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("AI provider returned an unexpected response.");
-    const jsonText = content.trim().replace(/^\x60\x60\x60(?:json)?\\s*/i, "").replace(/\\s*\x60\x60\x60$/, "");
+    const jsonText = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
     const parsed = JSON.parse(jsonText);
     if (!Array.isArray(parsed.operations) || parsed.operations.length === 0) {
       return res.status(422).json({ error: parsed.summary || "The request did not produce any supported server changes." });
