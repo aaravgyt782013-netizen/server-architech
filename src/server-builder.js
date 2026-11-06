@@ -27,10 +27,9 @@ export function validatePlan(body) {
     switch (op.type) {
       case "create_role": {
         const name = cleanName(op.name, "role name");
-        const color = op.color || "#5865F2";
-        if (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color)) {
-          throw new Error(`Operation ${index + 1}: color must be a hex value like #5865F2`);
-        }
+        // AI output is untrusted: normalize common hex forms and use a safe
+        // Discord-blurple fallback instead of failing the entire plan.
+        const color = normalizeRoleColor(op.color);
         const permissions = Array.isArray(op.permissions) ? op.permissions : [];
         parseSafePermissions(permissions);
         return { type: op.type, name, color, hoist: Boolean(op.hoist), mentionable: Boolean(op.mentionable), permissions };
