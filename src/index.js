@@ -177,7 +177,7 @@ app.post("/api/command/plan", async (req, res) => {
         providerMessage = rawDetail;
       }
       // Keep credentials and request payloads out of logs and Discord responses.
-      providerMessage = String(providerMessage).replace(/Bearer\\s+\\S+/gi, "Bearer [redacted]").replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
+      providerMessage = String(providerMessage).replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").replace(/[\r\n\t]+/g, " ").slice(0, 500);
       console.error("AI provider request failed:", { status: response.status, model: config.aiModel, message: providerMessage || "No provider error message returned." });
       const hint = response.status === 401 || response.status === 403
         ? "Gemini rejected the API key or its permissions. Check AI_API_KEY in Render."
