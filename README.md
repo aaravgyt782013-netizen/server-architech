@@ -23,7 +23,11 @@ Reference images are processed for the current request only. Use JPG, PNG or Web
 6. Grant **Manage Roles**, **Manage Channels**, and **View Channels** only. Do not grant Administrator.
 7. Place the bot's role above the roles it needs to create.
 
-## Groq AI provider\n\nThe planner uses Groq through its OpenAI-compatible Chat Completions API. The default model is `qwen/qwen3.8-27b`, which supports image inputs and JSON mode. Groq account quotas and model availability apply; free access is not unlimited. Create a key in the [Groq Console](https://console.groq.com/keys).\n\n## Render deployment
+## Groq AI provider
+
+The planner uses Groq through its OpenAI-compatible Chat Completions API. The default model is `qwen/qwen3.8-27b`, which supports image inputs and JSON mode. Groq account quotas and model availability apply; free access is not unlimited. Create a key in the [Groq Console](https://console.groq.com/keys).
+
+## Render deployment
 
 Deploy this repository as a Node web service using `render.yaml`. Set these environment variables in Render:
 
@@ -32,9 +36,9 @@ Deploy this repository as a Node web service using `render.yaml`. Set these envi
 - `GUILD_ID` — target Discord server ID
 - `MANAGER_API_KEY` — long random secret (32+ characters)
 - `MANAGER_DISCORD_USER_IDS` — **required** comma-separated Discord user IDs allowed to run `/design`
-- `AI_API_KEY` — Gemini API key
-- `AI_BASE_URL` — `https://generativelanguage.googleapis.com/v1beta/openai`
-- `AI_MODEL` — model available to your Gemini API key (default in `.env.example`)
+- `AI_API_KEY` — Groq API key (create it at https://console.groq.com/keys)
+- `AI_BASE_URL` — `https://api.groq.com/openai/v1`
+- `AI_MODEL` — `qwen/qwen3.8-27b` (supports image references and JSON mode)
 
 The service health endpoint is `/health`. The root URL returns service information only; it is not a dashboard.
 
