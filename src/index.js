@@ -274,7 +274,11 @@ function buildPreviewEmbed(data) {
     const icon = op.type === "create_role" ? "👤" : op.type === "create_category" ? "📁" : op.type === "create_voice_channel" ? "🔊" : "💬";
     return (index + 1) + ". " + icon + " **" + op.name + "** — " + (op.status === "will_create" ? "🟢 Create" : "⚪ Skip (already exists)");
   });
-  return new EmbedBuilder().setColor(0xe44757).setTitle("Server Architect · Implementation preview").setDescription((data.summary || "Review the proposed structure.") + "\n\n" + lines.join("\n").slice(0, 3800)).addFields({ name: "Will create", value: String(preview.createCount), inline: true }, { name: "Will skip", value: String(preview.skippedCount), inline: true }, { name: "Total", value: String(preview.operationCount), inline: true }).setFooter({ text: "Nothing has changed yet. Only your approval will apply this plan." });
+  const summary = String(data.summary || "Review the proposed structure.").slice(0, 650);
+  const description = (summary + "\n\n" + lines.join("\n")).slice(0, 4000);
+  return new EmbedBuilder().setColor(0xe44757).setTitle("Server Architect · Implementation preview").setDescription(description)
+    .addFields({ name: "Will create", value: String(preview.createCount), inline: true }, { name: "Will skip", value: String(preview.skippedCount), inline: true }, { name: "Total", value: String(preview.operationCount), inline: true })
+    .setFooter({ text: "Nothing has changed yet. Only your approval will apply this plan." });
 }
 client.once(Events.ClientReady, async (readyClient) => {
   lastReadyAt = new Date().toISOString();
