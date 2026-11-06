@@ -280,6 +280,16 @@ function buildPreviewEmbed(data) {
     .addFields({ name: "Will create", value: String(preview.createCount), inline: true }, { name: "Will skip", value: String(preview.skippedCount), inline: true }, { name: "Total", value: String(preview.operationCount), inline: true })
     .setFooter({ text: "Nothing has changed yet. Only your approval will apply this plan." });
 }
+async function deliverPreview(interaction, prompt, images) {
+  if (images.length) await interaction.followUp({ content: "📸 Received " + images.length + " reference photo(s). Sending your prompt and images to the AI architect…", ephemeral: true });
+  else await interaction.followUp({ content: "No reference photos received. I am building the preview from your written brief only…", ephemeral: true });
+  const data = await requestPlan(prompt, images);
+  const key = interaction.user.id + ":" + Date.now() + ":" + Math.random().toString(36).slice(2);
+  pendingPlans.set(key, { userId: interaction.user.id, guildId: interaction.guildId, operations: data.preview.operations.map(({ status, ...op }) => op), createdAt: Date.now() });
+  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("sa_apply:" + key).setLabel("Approve & implement").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId("sa_cancel:" + key).setLabel("Cancel").setStyle(ButtonStyle.Secondary));
+  await interaction.followUp({ embeds: [buildPreviewEmbed(data)], components: [row], ephemeral: true });
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   lastReadyAt = new Date().toISOString();
   console.log(`Discord bot ready as ${readyClient.user.tag}`);
@@ -301,20 +311,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
     if (!interaction.guild || !interaction.channel) return interaction.reply({ content: "Use this command inside your Discord server.", ephemeral: true });
     const prompt = interaction.options.getString("prompt", true);
-    await interaction.reply({ content: "🧠 I am analysing your brief. Now send up to 3 reference photos/screenshots as image attachments in this channel within 2 minutes. If you have no photos, send **skip**. I will show a preview before changing anything.", ephemeral: true });
-    const collector = interaction.channel.createMessageCollector({ time: 120000, max: 1, filter: message => message.author.id === interaction.user.id && (message.attachments.size > 0 || message.content.trim().toLowerCase() === "skip") });
+    await interaction.reply({ content: "🧠 I am analysing your brief. Send up to 3 reference photos/screenshots as image attachments in this channel within 2 minutes. If you have no photos, do nothing — I will continue using your written brief when the timer ends. I will show a preview before changing anything.", ephemeral: true });
+    const collector = interaction.channel.createMessageCollector({ time: 120000, max: 1, filter: message => message.author.id === interaction.user.id && message.attachments.size > 0 });
     collector.on("collect", async message => {
-      try {
-        const images = message.content.trim().toLowerCase() === "skip" ? [] : await downloadReferences(message);
-        await interaction.followUp({ content: "📸 Received " + images.length + " reference photo(s). Sending your prompt and images to the AI architect…", ephemeral: true });
-        const data = await requestPlan(prompt, images);
-        const key = interaction.user.id + ":" + Date.now() + ":" + Math.random().toString(36).slice(2);
-        pendingPlans.set(key, { userId: interaction.user.id, guildId: interaction.guildId, operations: data.preview.operations.map(({ status, ...op }) => op), createdAt: Date.now() });
-        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("sa_apply:" + key).setLabel("Approve & implement").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId("sa_cancel:" + key).setLabel("Cancel").setStyle(ButtonStyle.Secondary));
-        await interaction.followUp({ embeds: [buildPreviewEmbed(data)], components: [row], ephemeral: true });
-      } catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
+      try { const images = await downloadReferences(message); await deliverPreview(interaction, prompt, images); }
+      catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
     });
-    collector.on("end", async collected => { if (!collected.size) await interaction.followUp({ content: "⌛ Reference upload timed out. Run /design again.", ephemeral: true }).catch(() => {}); });
+    collector.on("end", async collected => {
+      if (!collected.size) {
+        try { await deliverPreview(interaction, prompt, []); }
+        catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
+      }
+    });
     return;
   }
   if (interaction.isButton() && (interaction.customId.startsWith("sa_apply:") || interaction.customId.startsWith("sa_cancel:"))) {
