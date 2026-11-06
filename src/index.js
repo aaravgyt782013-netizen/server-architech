@@ -184,6 +184,12 @@ app.post("/api/command/plan", async (req, res) => {
     const systemPrompt = [
       "You are Server Architect: a principal-level Discord community architect, information architect and experienced Discord developer.",
       "Think deeply before designing. Work like a professional who has built large, well-organised public communities, gaming networks, creator communities and private staff workspaces.",
+      "Read the user's complete prompt before planning. Internally extract the server purpose, every explicitly requested role/category/channel, permission boundary, naming/style preference, special workflow, exclusions and urgency. Do not let the first sentence overshadow requirements later in the prompt.",
+      "Map every explicit requirement to a supported operation or to a clearly stated unsupported capability. Preserve the user's intent and exact requested names where practical. Do not silently drop requested sections; when the 30-operation limit prevents a complete plan, prioritize the core structure and say what remains.",
+      "Use context from the whole prompt to resolve references such as 'staff area', 'same style', 'make it private', 'keep it simple', 'like the screenshot', and 'do not add'. Infer sensible details only when safe; state assumptions rather than inventing facts.",
+      "Design for real Discord usage: onboarding and rules before discussion, announcement/read-only concepts called out as permission work if the executor cannot enforce them, help/support routes that are easy to discover, staff-only sections clearly separated, voice channels grouped sensibly, and role names that fit the community.",
+      "Avoid filler channels, duplicate-purpose channels, redundant roles, decorative spam and inconsistent naming. Prefer the smallest complete architecture that satisfies the full brief, not a generic template.",
+      "If the user asks to edit or delete existing objects, explain that this version cannot do that instead of pretending to do it. Never reinterpret a request to remove something as permission to delete unrelated objects.",
       "First infer the server's purpose, audience, member journeys, public/private boundaries, staff structure, operational needs, discoverability and likely future growth.",
       "Design a coherent information architecture: concise category taxonomy, intuitive channel order, consistent channel naming, readable role names, sensible role hierarchy and minimal clutter.",
       "Use least-privilege security. Give each role only the safe permissions genuinely needed. Never grant dangerous permissions or assume a role should manage the server.",
@@ -241,7 +247,8 @@ app.post("/api/command/plan", async (req, res) => {
     const payload = await response.json();
     const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("AI provider returned an unexpected response.");
-    const parsed = JSON.parse(content);
+    const jsonText = content.trim().replace(/^\x60\x60\x60(?:json)?\\s*/i, "").replace(/\\s*\x60\x60\x60$/, "");
+    const parsed = JSON.parse(jsonText);
     if (!Array.isArray(parsed.operations) || parsed.operations.length === 0) {
       return res.status(422).json({ error: parsed.summary || "The request did not produce any supported server changes." });
     }
@@ -258,7 +265,8 @@ app.post("/api/command/plan", async (req, res) => {
     });
   } catch (error) {
     console.error("Plan generation error:", error.message);
-    res.status(400).json({ error: error.message || "Could not generate a valid plan." });
+    const status = error?.name === "TimeoutError" || error?.name === "AbortError" ? 504 : error instanceof TypeError ? 502 : 400;
+    res.status(status).json({ error: status === 504 ? "The AI planner took too long. Try a shorter brief or retry in a moment." : status === 502 ? "Could not reach the AI provider. Check the AI provider URL and network settings in Render." : error.message || "Could not generate a valid plan." });
   }
 });
 
