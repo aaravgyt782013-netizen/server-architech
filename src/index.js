@@ -1,14 +1,16 @@
 import express from "express";
 import { timingSafeEqual, createHmac } from "node:crypto";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import {
   Client,
   Events,
   GatewayIntentBits,
   REST,
   Routes,
-  SlashCommandBuilder
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder
 } from "discord.js";
 import { config } from "./config.js";
 import { applyPlan, checkBotPermissions, previewPlan, validatePlan } from "./server-builder.js";
@@ -17,59 +19,14 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
 
-const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const pendingPlans = new Map();
 let lastReadyAt = null;
 
 function safeEqual(a, b) {
   const left = Buffer.from(String(a));
   const right = Buffer.from(String(b));
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function cookieValue(req, name) {
-  const raw = req.headers.cookie || "";
-  for (const part of raw.split(";")) {
-    const [key, ...value] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(value.join("="));
-  }
-  return "";
-}
-
-function createSessionToken() {
-  const expiresAt = String(Date.now() + 12 * 60 * 60 * 1000);
-  const signature = createHmac("sha256", config.sessionSecret).update(expiresAt).digest("hex");
-  return `${expiresAt}.${signature}`;
-}
-
-function isValidSession(token) {
-  if (!token || !config.sessionSecret) return false;
-  const [expiresAt, signature] = token.split(".");
-  if (!expiresAt || !signature || !/^\d+$/.test(expiresAt) || Number(expiresAt) < Date.now()) return false;
-  const expected = createHmac("sha256", config.sessionSecret).update(expiresAt).digest("hex");
-  return safeEqual(signature, expected);
-}
-
-function requireManager(req, res, next) {
-  const header = req.get("authorization") || "";
-  const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const session = cookieValue(req, "sa_session");
-  if ((bearer && safeEqual(bearer, config.apiKey)) || isValidSession(session)) return next();
-  return res.status(401).json({ error: "Please sign in to Server Architect." });
-}
-
-function requireSameOrigin(req, res, next) {
-  const origin = req.get("origin");
-  if (origin) {
-    try {
-      if (new URL(origin).host !== req.get("host")) {
-        return res.status(403).json({ error: "Cross-origin request blocked." });
-      }
-    } catch {
-      return res.status(403).json({ error: "Invalid request origin." });
-    }
-  }
-  next();
 }
 
 async function getGuild() {
@@ -121,19 +78,6 @@ app.get("/openapi.yaml", (_req, res) => {
   res.type("text/yaml").sendFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../openapi.yaml"));
 });
 
-app.post("/api/login", requireSameOrigin, (req, res) => {
-  if (!config.dashboardPassword) {
-    return res.status(503).json({ error: "Dashboard login is not configured. Set DASHBOARD_PASSWORD in Render." });
-  }
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!password || !safeEqual(password, config.dashboardPassword)) {
-    return res.status(401).json({ error: "Incorrect dashboard password." });
-  }
-  const secure = config.nodeEnv === "production" ? "; Secure" : "";
-  res.setHeader("Set-Cookie", `sa_session=${encodeURIComponent(createSessionToken())}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200${secure}`);
-  res.json({ ok: true });
-});
-
 app.use("/api", requireManager);
 app.use("/api", (req, res, next) => {
   const hasBearer = (req.get("authorization") || "").startsWith("Bearer ");
@@ -141,19 +85,6 @@ app.use("/api", (req, res, next) => {
     return requireSameOrigin(req, res, next);
   }
   next();
-});
-
-app.get("/api/session", (_req, res) => res.json({
-  ok: true,
-  dashboardReady: Boolean(config.dashboardPassword),
-  aiReady: Boolean(config.aiApiKey),
-  botReady: client.isReady()
-}));
-
-app.post("/api/logout", requireSameOrigin, (_req, res) => {
-  const secure = config.nodeEnv === "production" ? "; Secure" : "";
-  res.setHeader("Set-Cookie", `sa_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`);
-  res.json({ ok: true });
 });
 
 app.get("/api/status", async (_req, res) => {
@@ -297,8 +228,7 @@ app.post("/api/apply", async (req, res) => {
 });
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "API endpoint not found." }));
-app.use(express.static(publicDir));
-app.get("*", (_req, res) => res.sendFile(path.join(publicDir, "index.html")));
+app.get("/", (_req, res) => res.json({ service: "Server Architect Discord Bot", interface: "Discord commands", command: "/design", health: "/health" }));
 
 app.use((error, _req, res, _next) => {
   if (error?.type === "entity.too.large") {
@@ -309,12 +239,42 @@ app.use((error, _req, res, _next) => {
 });
 
 const commands = [
-  new SlashCommandBuilder()
-    .setName("serverarchitect")
-    .setDescription("Check Server Architect bot status")
-    .toJSON()
+  new SlashCommandBuilder().setName("design").setDescription("Design a Discord server from your prompt and reference photos")
+    .addStringOption(option => option.setName("prompt").setDescription("Describe exactly what you want built").setRequired(true).setMaxLength(4000)).toJSON(),
+  new SlashCommandBuilder().setName("serverarchitect").setDescription("Check Server Architect bot status").toJSON()
 ];
 
+async function requestPlan(prompt, images) {
+  const response = await fetch("http://127.0.0.1:" + config.port + "/api/command/plan", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + config.apiKey }, body: JSON.stringify({ command: prompt, images }), signal: AbortSignal.timeout(70000) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "AI planner failed (HTTP " + response.status + ").");
+  return data;
+}
+
+async function downloadReferences(message) {
+  const attachments = [...message.attachments.values()].slice(0, 3);
+  const images = [];
+  for (const attachment of attachments) {
+    const mime = attachment.contentType?.split(";")[0];
+    if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) continue;
+    if (attachment.size > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 850 KB. Compress it and resend.");
+    const response = await fetch(attachment.url, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error("Could not download a reference photo. Please resend it.");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 850 KB.");
+    images.push({ dataUrl: "data:" + mime + ";base64," + bytes.toString("base64") });
+  }
+  return images;
+}
+
+function buildPreviewEmbed(data) {
+  const preview = data.preview;
+  const lines = preview.operations.slice(0, 35).map((op, index) => {
+    const icon = op.type === "create_role" ? "👤" : op.type === "create_category" ? "📁" : op.type === "create_voice_channel" ? "🔊" : "💬";
+    return (index + 1) + ". " + icon + " **" + op.name + "** — " + (op.status === "will_create" ? "🟢 Create" : "⚪ Skip (already exists)");
+  });
+  return new EmbedBuilder().setColor(0xe44757).setTitle("Server Architect · Implementation preview").setDescription((data.summary || "Review the proposed structure.") + "\n\n" + lines.join("\n").slice(0, 3800)).addFields({ name: "Will create", value: String(preview.createCount), inline: true }, { name: "Will skip", value: String(preview.skippedCount), inline: true }, { name: "Total", value: String(preview.operationCount), inline: true }).setFooter({ text: "Nothing has changed yet. Only your approval will apply this plan." });
+}
 client.once(Events.ClientReady, async (readyClient) => {
   lastReadyAt = new Date().toISOString();
   console.log(`Discord bot ready as ${readyClient.user.tag}`);
@@ -328,20 +288,47 @@ client.once(Events.ClientReady, async (readyClient) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== "serverarchitect") return;
-  if (config.managerUserIds.length && !config.managerUserIds.includes(interaction.user.id)) {
-    return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
+  if (interaction.isChatInputCommand() && interaction.commandName === "serverarchitect") {
+    if (config.managerUserIds.length && !config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
+    return interaction.reply({ content: "Server Architect is online. Use /design to build from a prompt and reference photos.", ephemeral: true });
   }
-  return interaction.reply({
-    content: client.isReady()
-      ? `Server Architect is online. Connected to **${interaction.guild?.name || "your server"}**. API health: available.`
-      : "Server Architect is starting.",
-    ephemeral: true
-  });
+  if (interaction.isChatInputCommand() && interaction.commandName === "design") {
+    if (config.managerUserIds.length && !config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
+    if (!interaction.guild || !interaction.channel) return interaction.reply({ content: "Use this command inside your Discord server.", ephemeral: true });
+    const prompt = interaction.options.getString("prompt", true);
+    await interaction.reply({ content: "🧠 I am analysing your brief. Now send up to 3 reference photos/screenshots as image attachments in this channel within 2 minutes. If you have no photos, send **skip**. I will show a preview before changing anything.", ephemeral: true });
+    const collector = interaction.channel.createMessageCollector({ time: 120000, max: 1, filter: message => message.author.id === interaction.user.id && (message.attachments.size > 0 || message.content.trim().toLowerCase() === "skip") });
+    collector.on("collect", async message => {
+      try {
+        const images = message.content.trim().toLowerCase() === "skip" ? [] : await downloadReferences(message);
+        await interaction.followUp({ content: "📸 Received " + images.length + " reference photo(s). Sending your prompt and images to the AI architect…", ephemeral: true });
+        const data = await requestPlan(prompt, images);
+        const key = interaction.user.id + ":" + Date.now() + ":" + Math.random().toString(36).slice(2);
+        pendingPlans.set(key, { userId: interaction.user.id, guildId: interaction.guildId, operations: data.preview.operations.map(({ status, ...op }) => op), createdAt: Date.now() });
+        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("sa_apply:" + key).setLabel("Approve & implement").setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId("sa_cancel:" + key).setLabel("Cancel").setStyle(ButtonStyle.Secondary));
+        await interaction.followUp({ embeds: [buildPreviewEmbed(data)], components: [row], ephemeral: true });
+      } catch (error) { console.error("Discord design flow failed:", error); await interaction.followUp({ content: "❌ I could not prepare the preview: " + error.message, ephemeral: true }).catch(() => {}); }
+    });
+    collector.on("end", async collected => { if (!collected.size) await interaction.followUp({ content: "⌛ Reference upload timed out. Run /design again.", ephemeral: true }).catch(() => {}); });
+    return;
+  }
+  if (interaction.isButton() && (interaction.customId.startsWith("sa_apply:") || interaction.customId.startsWith("sa_cancel:"))) {
+    const parts = interaction.customId.split(":"); const action = parts[0]; const key = parts.slice(1).join(":"); const pending = pendingPlans.get(key);
+    if (!pending || pending.userId !== interaction.user.id || pending.guildId !== interaction.guildId) return interaction.reply({ content: "This preview is not yours or has expired. Run /design again.", ephemeral: true });
+    if (Date.now() - pending.createdAt > 900000) { pendingPlans.delete(key); return interaction.update({ content: "This preview expired. Run /design again.", embeds: [], components: [] }); }
+    if (action === "sa_cancel") { pendingPlans.delete(key); return interaction.update({ content: "❎ Plan cancelled. No Discord changes were made.", embeds: [], components: [] }); }
+    await interaction.deferUpdate();
+    try {
+      const response = await fetch("http://127.0.0.1:" + config.port + "/api/apply", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + config.apiKey }, body: JSON.stringify({ operations: pending.operations, confirm: "APPLY_SERVER_PLAN" }), signal: AbortSignal.timeout(60000) });
+      const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Apply failed (HTTP " + response.status + ").");
+      pendingPlans.delete(key); const rows = result.result.results || []; const created = rows.filter(item => item.result === "created").length; const skipped = rows.filter(item => item.result === "skipped_existing").length; const failed = rows.filter(item => item.result === "failed");
+      const failureText = failed.length ? "\n\nFailed: " + failed.map(item => item.name + ": " + item.error).join("; ").slice(0, 900) : "";
+      await interaction.editReply({ content: "✅ Implementation finished\nCreated: **" + created + "** · Skipped: **" + skipped + "** · Failed: **" + failed.length + "**" + failureText, embeds: [], components: [] });
+    } catch (error) { await interaction.followUp({ content: "❌ Implementation failed: " + error.message + ". Check the Discord server before retrying.", ephemeral: true }).catch(() => {}); }
+  }
 });
-
 const server = app.listen(config.port, "0.0.0.0", () => {
-  console.log(`Server Architect API and dashboard listening on port ${config.port}`);
+  console.log(`Server Architect bot API listening on port ${config.port}; Discord is the interface.`);
 });
 
 async function shutdown() {
