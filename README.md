@@ -4,11 +4,11 @@ Server Architect is controlled from Discord. There is no web dashboard.
 
 ## Workflow
 
-1. Run `/design prompt:<describe your server>` in your Discord server.
-2. The bot asks you to upload up to **3 reference screenshots/photos** in the channel. Attach the images in one message within 2 minutes. If you have no photos, simply wait; the bot continues with the written brief after 2 minutes.
-3. The bot sends your complete written brief and images to the configured AI model.
-4. The bot replies with a structured preview showing roles, categories and channels it proposes to create, plus what will be skipped.
-5. Review the preview and press **Approve & implement** or **Cancel**. Only the user who started the design can approve it. Previews expire after 15 minutes.
+1. Run `/design` in your Discord server. The bot posts a public Design Studio message.
+2. Use **Edit prompt** to enter the server brief in a modal.
+3. Optionally use **Add photo links** to paste up to 3 Discord CDN image URLs (one per line).
+4. Select **Generate preview**. The bot validates references, sends the brief and images to Groq, and updates the same Design Studio message with progress.
+5. Review the structured preview and press **Approve & implement** or **Cancel**. Only the user who started the design can approve it. Previews expire after 15 minutes.
 6. The bot reports created, skipped and failed operations.
 
 Reference images are processed for the current request only. Use JPG, PNG or WebP; each image must be 1 MB or smaller. Do not upload sensitive/private information.
@@ -23,7 +23,7 @@ Reference images are processed for the current request only. Use JPG, PNG or Web
 6. Grant **Manage Roles**, **Manage Channels**, and **View Channels** only. Do not grant Administrator.
 7. Place the bot's role above the roles it needs to create.
 
-## Render deployment
+## Groq AI provider\n\nThe planner uses Groq through its OpenAI-compatible Chat Completions API. The default model is `qwen/qwen3.8-27b`, which supports image inputs and JSON mode. Groq account quotas and model availability apply; free access is not unlimited. Create a key in the [Groq Console](https://console.groq.com/keys).\n\n## Render deployment
 
 Deploy this repository as a Node web service using `render.yaml`. Set these environment variables in Render:
 
