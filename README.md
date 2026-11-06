@@ -1,72 +1,57 @@
-# Server Architect
+# Server Architect — Discord-first AI builder
 
-A mobile-friendly Discord server structure dashboard with an AI command planner and a protected Discord bot API.
+Server Architect is controlled from Discord. There is no web dashboard.
 
-## What it does
+## Workflow
 
-- Sign in to a private mobile-friendly dashboard.
-- Describe the Discord layout you want in ordinary language, or attach up to 3 visual reference screenshots/photos (compressed in the browser and processed for that request only).
-- Use an expert-style planning prompt focused on professional server architecture, hierarchy, consistent naming, usability and least-privilege design.
-- Ask the AI planner to turn that instruction into a structured plan.
-- Preview every proposed role, category and channel before changing Discord.
-- Type **APPLY** to confirm the exact preview.
-- Creates roles, categories, text channels and voice channels.
-- Skips names that already exist; does not delete or edit existing server objects.
-- Restricts generated role permissions to a small safe allowlist. Administrator and moderation permissions are not allowed.
+1. Run `/design prompt:<describe your server>` in your Discord server.
+2. The bot asks you to upload up to **3 reference screenshots/photos** in the channel. Send the images as attachments within 2 minutes, or send `skip` if you have no references.
+3. The bot sends your complete written brief and images to the configured AI model.
+4. The bot replies with a structured preview showing roles, categories and channels it proposes to create, plus what will be skipped.
+5. Review the preview and press **Approve & implement** or **Cancel**. Only the user who started the design can approve it. Previews expire after 15 minutes.
+6. The bot reports created, skipped and failed operations.
 
-This remains a conservative first release. Visual references inform the proposed structure, but this release only creates roles, categories, text channels and voice channels. It does not yet configure detailed per-channel permission overwrites, moderation, tickets, automod, role assignment or message content. The planner must not claim those unsupported features have been configured.
+Reference images are processed for the current request only. Use JPG, PNG or WebP; each image must be 1 MB or smaller. Do not upload sensitive/private information.
 
-## 1. Discord application
+## Discord setup
 
 1. Create an application at https://discord.com/developers/applications.
-2. Open **Bot** and create/reset the bot token. Keep it secret.
-3. Copy the **Application ID** from General Information.
-4. This version only needs the Guilds intent.
-5. Invite the bot using scopes `bot` and `applications.commands`.
-6. Grant only **Manage Roles**, **Manage Channels**, and **View Channels**. Do not grant Administrator.
-7. Invite it to your existing server. Keep the bot role high enough in the role list for the roles it needs to create.
+2. Create a bot and copy its token securely.
+3. Copy the Application ID and your target Server ID.
+4. The bot uses the Guilds and Guild Messages intents; Message Content intent is not required for image uploads.
+5. Invite the bot with scopes `bot` and `applications.commands`.
+6. Grant **Manage Roles**, **Manage Channels**, and **View Channels** only. Do not grant Administrator.
+7. Place the bot's role above the roles it needs to create.
 
-## 2. Deploy to Render
+## Render deployment
 
-1. Open https://dashboard.render.com/ and choose **New -> Blueprint**.
-2. Connect GitHub and select this repository. Render reads `render.yaml`.
-3. Set the following environment variables in the Render service:
-   - `DISCORD_TOKEN`: bot token from Discord Developer Portal
-   - `CLIENT_ID`: Discord Application ID
-   - `GUILD_ID`: target server ID
-   - `MANAGER_API_KEY`: a long random secret (at least 32 characters)
-   - `DASHBOARD_PASSWORD`: a separate strong password you will use to sign in to the dashboard
-   - `AI_API_KEY`: API key from your chosen AI provider
-   - `AI_BASE_URL`: API base URL (default is Gemini OpenAI-compatible `https://generativelanguage.googleapis.com/v1beta/openai`)
-   - `AI_MODEL`: model name supported by that provider (default `gemini-3.6-flash`)
-   - `DASHBOARD_SESSION_SECRET`: optional separate random secret for signing browser sessions
-4. Deploy and wait for the service to become Live.
-5. Open `https://YOUR-SERVICE.onrender.com/health`. It should return `ok: true` and `discordReady: true`.
-6. Open the root service URL on your phone and sign in with `DASHBOARD_PASSWORD`.
+Deploy this repository as a Node web service using `render.yaml`. Set these environment variables in Render:
 
-The AI settings use an Gemini OpenAI-compatible Chat Completions endpoint. You may configure another compatible provider by changing `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`. Provider compatibility varies; test the planner after deployment.
+- `DISCORD_TOKEN` — bot token
+- `CLIENT_ID` — Discord application ID
+- `GUILD_ID` — target Discord server ID
+- `MANAGER_API_KEY` — long random secret (32+ characters)
+- `MANAGER_DISCORD_USER_IDS` — **required** comma-separated Discord user IDs allowed to run `/design`
+- `AI_API_KEY` — Gemini API key
+- `AI_BASE_URL` — `https://generativelanguage.googleapis.com/v1beta/openai`
+- `AI_MODEL` — model available to your Gemini API key (default in `.env.example`)
 
-## 3. Use the dashboard
+The service health endpoint is `/health`. The root URL returns service information only; it is not a dashboard.
 
-1. Open your Render service URL.
-2. Sign in with your dashboard password.
-3. Enter an instruction such as: "Create a professional staff section with Management, Trial Staff and Staff roles, a staff information category, staff chat, evidence and a staff voice channel."
-4. Tap **Generate preview**.
-5. Review the proposed changes carefully.
-6. Type `APPLY` and tap **Apply approved changes**.
+## Current implementation scope
 
-The browser session is HTTP-only, same-site and signed by the server. The Discord bot token, AI API key and manager API key are never placed in browser code. The API also continues to accept Bearer authentication for trusted integrations.
+The executor currently creates roles, categories, text channels and voice channels. It safely skips names that already exist. It does **not** yet configure detailed channel permission overwrites, role positions, onboarding, automod, tickets, webhooks, moderation workflows, role assignment or message content. The AI must not claim unsupported features have been implemented.
 
-## Security
+The planner uses an allowlist of safe role permissions. It never grants Administrator or moderation powers. It does not delete or edit existing server objects. Every plan requires an explicit button approval before any Discord changes are attempted.
 
-- Never put real secrets in GitHub, screenshots, public pages or ChatGPT messages.
-- Do not grant the bot Administrator.
-- Keep the dashboard password private and different from the API key.
-- If a token or key is exposed, rotate it in its provider and update Render.
-- The dashboard session expires after 12 hours.
-- Applying changes requires a fresh preview and typing APPLY.
-- The current release only creates supported objects; it does not delete or edit existing server objects.
+## Local development
 
-## Environment variables
+Copy `.env.example` to `.env`, fill in the values, then run:
 
-See `.env.example`. For local development, copy it to `.env`, fill in values, run `npm install`, then `npm start`.
+```bash
+npm install
+npm test
+npm start
+```
+
+Never commit tokens or API keys. If a secret is exposed, rotate it in the provider immediately.
