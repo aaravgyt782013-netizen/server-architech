@@ -74,19 +74,14 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "server-architect", discordReady: client.isReady(), lastReadyAt });
 });
 
-app.get("/openapi.yaml", (_req, res) => {
-  res.type("text/yaml").sendFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../openapi.yaml"));
-});
+function requireManager(req, res, next) {
+  const authorization = req.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!token || !safeEqual(token, config.apiKey)) return res.status(401).json({ error: "Unauthorized." });
+  next();
+}
 
 app.use("/api", requireManager);
-app.use("/api", (req, res, next) => {
-  const hasBearer = (req.get("authorization") || "").startsWith("Bearer ");
-  if (!hasBearer && cookieValue(req, "sa_session") && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-    return requireSameOrigin(req, res, next);
-  }
-  next();
-});
-
 app.get("/api/status", async (_req, res) => {
   try {
     const guild = await getGuild();
