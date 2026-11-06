@@ -232,7 +232,7 @@ app.get("/", (_req, res) => res.json({ service: "Server Architect Discord Bot", 
 
 app.use((error, _req, res, _next) => {
   if (error?.type === "entity.too.large") {
-    return res.status(413).json({ error: "Request is too large. Use up to 3 compressed reference images (2.5 MB combined)." });
+    return res.status(413).json({ error: "Request is too large. Use up to 3 reference images (1 MB each)." });
   }
   console.error("HTTP error:", error);
   res.status(500).json({ error: "Internal server error" });
@@ -296,7 +296,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   try {
     const rest = new REST({ version: "10" }).setToken(config.token);
     await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), { body: commands });
-    console.log("Registered /serverarchitect command");
+    console.log("Registered /design and /serverarchitect commands");
   } catch (error) {
     console.error("Could not register slash command:", error.message);
   }
@@ -311,7 +311,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
     if (!interaction.guild || !interaction.channel) return interaction.reply({ content: "Use this command inside your Discord server.", ephemeral: true });
     const prompt = interaction.options.getString("prompt", true);
-    await interaction.reply({ content: "🧠 I am analysing your brief. Send up to 3 reference photos/screenshots as image attachments in this channel within 2 minutes. If you have no photos, do nothing — I will continue using your written brief when the timer ends. I will show a preview before changing anything.", ephemeral: true });
+    await interaction.reply({ content: "🧠 I am analysing your brief. Attach up to 3 reference photos/screenshots in one message in this channel within 2 minutes. If you have no photos, do nothing — I will continue using your written brief when the timer ends. I will show a preview before changing anything.", ephemeral: true });
     const collector = interaction.channel.createMessageCollector({ time: 120000, max: 1, filter: message => message.author.id === interaction.user.id && message.attachments.size > 0 });
     collector.on("collect", async message => {
       try { const images = await downloadReferences(message); await deliverPreview(interaction, prompt, images); }
