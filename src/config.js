@@ -12,8 +12,6 @@ export const config = Object.freeze({
   clientId: process.env.CLIENT_ID.trim(),
   guildId: process.env.GUILD_ID.trim(),
   apiKey: process.env.MANAGER_API_KEY.trim(),
-  dashboardPassword: (process.env.DASHBOARD_PASSWORD || "").trim(),
-  sessionSecret: (process.env.DASHBOARD_SESSION_SECRET || process.env.MANAGER_API_KEY).trim(),
   aiApiKey: (process.env.AI_API_KEY || "").trim(),
   aiBaseUrl: (process.env.AI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").trim().replace(/\/+$/, ""),
   aiModel: (process.env.AI_MODEL || "gemini-3.6-flash").trim(),
