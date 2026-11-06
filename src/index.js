@@ -40,7 +40,7 @@ async function getGuild() {
 
 const REFERENCE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_REFERENCE_IMAGES = 3;
-const MAX_REFERENCE_IMAGE_BYTES = 850 * 1024;
+const MAX_REFERENCE_IMAGE_BYTES = 1024 * 1024;
 
 function validateReferenceImages(input) {
   if (input === undefined) return [];
@@ -257,7 +257,7 @@ async function downloadReferences(message) {
   for (const attachment of attachments) {
     const mime = attachment.contentType?.split(";")[0];
     if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) continue;
-    if (attachment.size > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 850 KB. Compress it and resend.");
+    if (attachment.size > MAX_REFERENCE_IMAGE_BYTES) throw new Error("Each reference photo must be under 1 MB. Compress it and resend.");
     const response = await fetch(attachment.url, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error("Could not download a reference photo. Please resend it.");
     const bytes = Buffer.from(await response.arrayBuffer());
@@ -289,7 +289,7 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isChatInputCommand() && interaction.commandName === "serverarchitect") {
-    if (config.managerUserIds.length && !config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
+    if (!config.managerUserIds.includes(interaction.user.id)) return interaction.reply({ content: "You are not allowed to use this command.", ephemeral: true });
     return interaction.reply({ content: "Server Architect is online. Use /design to build from a prompt and reference photos.", ephemeral: true });
   }
   if (interaction.isChatInputCommand() && interaction.commandName === "design") {
