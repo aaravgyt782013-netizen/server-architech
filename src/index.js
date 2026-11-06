@@ -249,7 +249,7 @@ function studioEmbed(session, status = "Ready to configure") {
       {name:"📝 Design prompt",value:session.prompt ? session.prompt.slice(0,900) : "_Not set — use Edit prompt._"},
       {name:"🖼️ Reference photos",value:photos},
       {name:"⏱️ Estimated time",value:"About **30–90 seconds** after generation starts; complex requests or slow AI responses may take longer."},
-      {name:"📍 Current status",value:status}
+      {name:"📍 Current status",value:String(status).slice(0,950)}
     ).setFooter({text:"Up to 3 Discord image links · JPG, PNG or WebP · Approval required"});
 }
 function studioRows(id) {
