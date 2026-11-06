@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <title>Server Architect</title>
+  <style>
+:root{color-scheme:dark;--bg:#070d19;--panel:#101b2d;--panel2:#14243a;--line:#263c55;--text:#f5f8ff;--muted:#a3b2c8;--accent:#f04452;--accent2:#b91f36;--blue:#48a6df;--good:#55d6a1;--bad:#ff8793}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;color:var(--text);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:radial-gradient(ellipse at 8% 0%,#7c172b55,transparent 34%),radial-gradient(ellipse at 92% 12%,#174b7655,transparent 30%),linear-gradient(145deg,#070d19,#0a1423 55%,#080d18);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.14;background-image:radial-gradient(circle at 0 0,transparent 0 72px,#4a7393 73px 74px,transparent 75px),radial-gradient(circle at 0 0,transparent 0 145px,#4a7393 146px 147px,transparent 148px),linear-gradient(45deg,transparent 49.7%,#4a7393 50%,transparent 50.3%),linear-gradient(-45deg,transparent 49.7%,#4a7393 50%,transparent 50.3%);background-size:290px 290px;background-position:calc(100% + 145px) -145px;mask-image:linear-gradient(130deg,#000,transparent 68%)}
+.wrap{width:min(980px,100%);margin:auto;padding:28px 18px 64px;position:relative}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:28px;padding:4px 0 18px;border-bottom:1px solid #29405a}
+.brand{display:flex;align-items:center;gap:13px}.logo{width:48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#ff5a62,#b70f2c 70%);display:grid;place-items:center;color:#fff;font-size:23px;font-weight:950;box-shadow:0 10px 34px #e5233650;border:1px solid #ff8790}
+h1{font-size:21px;letter-spacing:-.55px;margin:0}.sub{font-size:12px;color:var(--muted)}.pill{border:1px solid #38516a;border-radius:999px;padding:7px 11px;color:#c4d3e5;font-size:10px;font-weight:750;letter-spacing:1.1px;white-space:nowrap;background:#101c2b}
+.panel{background:linear-gradient(155deg,#142238f2,#0e1929f5);border:1px solid #2c435d;border-radius:22px;padding:22px;margin:16px 0;box-shadow:0 18px 55px #0005;backdrop-filter:blur(12px)}
+#login{max-width:540px;margin:8vh auto 20px;padding:30px}
+#login:before{content:"YOUR FRIENDLY NEIGHBOURHOOD SERVER ARCHITECT";display:block;color:#ff707b;font-size:10px;font-weight:850;letter-spacing:1.7px;margin-bottom:15px}
+h2{font-size:18px;letter-spacing:-.25px;margin:0 0 5px}p{margin:5px 0;color:var(--muted)}label{display:block;font-size:13px;font-weight:650;color:#d3deeb;margin:16px 0 7px}
+input,textarea{width:100%;border:1px solid #38516a;border-radius:13px;background:#091321;color:var(--text);padding:14px 15px;font:inherit;outline:none;transition:border-color .18s,box-shadow .18s}
+input:focus,textarea:focus{border-color:#f04452;box-shadow:0 0 0 3px #f0445220}
+textarea{min-height:130px;resize:vertical}button{border:0;border-radius:13px;padding:12px 17px;font:750 13px system-ui;cursor:pointer;transition:transform .18s,filter .18s,box-shadow .18s}
+button:not(:disabled):hover{transform:translateY(-1px);filter:brightness(1.08)}button:disabled{opacity:.48;cursor:not-allowed}
+.primary{background:linear-gradient(135deg,#ff626d,#d51e3c);color:white;box-shadow:0 8px 22px #e5233630}
+.secondary{background:#172b40;color:#e8f1fb;border:1px solid #3b5671}.danger{background:#4a202e;color:#ffdce1;border:1px solid #743446}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}.status{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:18px}
+.stat{background:linear-gradient(145deg,#0a1726,#102238);border:1px solid #29435c;border-radius:15px;padding:13px}.stat b{display:block;font-size:17px}.stat span{font-size:10px;color:#9fb2c8;letter-spacing:1px;font-weight:750}
+.hidden{display:none!important}.notice{padding:13px 15px;border-radius:13px;background:#152b42;border:1px solid #31516c;color:#e0efff;margin-top:13px;font-size:13px}.error{background:#351b29;border-color:#743747;color:#ffd7dd}.success{background:#102c29;border-color:#245b4d;color:#c9ffeb}
+.op{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid #263d55}.op:last-child{border-bottom:0}.opicon{width:36px;height:36px;flex:none;border-radius:12px;background:linear-gradient(145deg,#243d56,#15283c);display:grid;place-items:center;color:#ff7782}.op strong{display:block;font-size:14px}.op small{color:var(--muted);font-size:12px}.tag{font-size:9px;font-weight:850;letter-spacing:.6px;border-radius:999px;padding:4px 8px;background:#203b34;color:#8af0c7;margin-left:7px}
+.footer{font-size:11px;color:#8195ad;text-align:center;margin-top:28px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.muted{color:var(--muted)}
+.upload{border:1px dashed #526d88;border-radius:15px;padding:15px;background:#0b1928}.upload input{padding:9px;border:0;background:transparent}.hint{font-size:12px;color:var(--muted);margin-top:7px}.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.ref{position:relative;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#0a1222}.ref img{width:100%;height:112px;object-fit:cover;display:block}.ref button{position:absolute;top:6px;right:6px;padding:5px 8px;background:#351c29;color:#fff}.ref span{display:block;padding:6px 8px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.expert{border-left:3px solid #f04452;padding:11px 13px;background:#1b2435;border-radius:0 12px 12px 0;margin-top:13px;font-size:12px;color:#d2dfef}
+@media(max-width:560px){.wrap{padding:18px 12px 42px}.panel{padding:17px;border-radius:18px}#login{margin:6vh auto 18px;padding:22px}.status{grid-template-columns:1fr 1fr}.status .stat:last-child{grid-column:span 2}.top{align-items:flex-start}.pill{font-size:9px;letter-spacing:.7px}.refs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="brand"><div class="logo">✦</div><div><h1>Server Architect</h1><div class="sub">Your Discord universe. Designed with precision.</div></div></div>
+      <span class="pill">SPIDER-SENSE · SECURE PANEL</span>
+    </header>
+
+    <section id="login" class="panel">
+      <h2>Welcome back</h2><p>Sign in to manage your connected Discord server.</p>
+      <form id="loginForm">
+        <label for="password">Dashboard password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="Enter your dashboard password" required>
+        <div class="actions"><button class="primary" type="submit">Sign in</button></div>
+      </form>
+      <div id="loginMessage" class="notice hidden"></div>
+    </section>
+
+    <section id="app" class="hidden">
+      <section class="panel">
+        <div class="row"><div><h2>Connected server</h2><p id="serverName">Checking connection…</p></div><button id="logout" class="secondary" type="button">Sign out</button></div>
+        <div class="status">
+          <div class="stat"><b id="botState">—</b><span>BOT STATUS</span></div>
+          <div class="stat"><b id="memberCount">—</b><span>MEMBERS</span></div>
+          <div class="stat"><b id="aiState">—</b><span>AI PLANNER</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="row"><div><h2>Architect your Discord server</h2><p>Professional planning, visual references and approval-first execution.</p></div><span class="pill">EXPERT MODE</span></div>
+        <div class="expert">Think like a senior Discord community architect: design a coherent hierarchy, clear staff structure, intuitive channel taxonomy, consistent naming and least-privilege roles. Analyse the whole request before proposing changes.</div>
+        <label for="command">Your instruction</label>
+        <textarea id="command" maxlength="4000" placeholder="Describe your community, server purpose, member types, staff team, channels, permissions and the experience you want. Example: Design a premium gaming community with a clear public area and a private staff workspace."></textarea>
+        <label for="referenceImages">Visual references (optional)</label>
+        <div class="upload">
+          <input id="referenceImages" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+          <div class="hint">Upload up to 3 screenshots or photos of Discord layouts, role lists, channel structures or design inspiration. Images are compressed in your browser and sent securely for this request only.</div>
+          <div id="referencePreviews" class="refs"></div>
+        </div>
+        <div class="actions"><button id="generate" class="primary" type="button">✦ Analyse & generate architecture</button></div>
+        <div id="planMessage" class="notice hidden"></div>
+      </section>
+
+      <section id="previewPanel" class="panel hidden">
+        <div class="row"><div><h2>Review your plan</h2><p id="planSummary">No changes have been applied yet.</p></div><span class="pill">PREVIEW</span></div>
+        <div class="status">
+          <div class="stat"><b id="createCount">0</b><span>TO CREATE</span></div>
+          <div class="stat"><b id="skipCount">0</b><span>TO SKIP</span></div>
+          <div class="stat"><b id="totalCount">0</b><span>OPERATIONS</span></div>
+        </div>
+        <div id="operations" style="margin-top:12px"></div>
+        <div class="notice">Nothing has changed on Discord yet. Review every item before applying.</div>
+        <label for="approval">Type APPLY to confirm these exact changes</label>
+        <input id="approval" placeholder="Type APPLY" autocomplete="off">
+        <div class="actions"><button id="apply" class="primary" type="button" disabled>Apply approved changes</button><button id="discard" class="secondary" type="button">Discard plan</button></div>
+        <div id="applyMessage" class="notice hidden"></div>
+      </section>
+    </section>
+    <div class="footer">SERVER ARCHITECT · PREVIEW FIRST · APPROVAL REQUIRED · NO DESTRUCTIVE OPERATIONS</div>
+  </main>
+<script>
+const $ = (id) => document.getElementById(id);
+let currentPlan = null;
+let referenceImages = [];
+const MAX_REFERENCES = 3;
+const MAX_REFERENCE_BYTES = 850 * 1024;
+const MAX_TOTAL_REFERENCE_BYTES = 2500 * 1024;
+
+async function compressReference(file) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use JPG, PNG or WebP images.");
+  if (typeof createImageBitmap !== "function") throw new Error("This browser cannot process image references. Try Chrome on Android.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  let quality = 0.82;
+  let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  while (blob && blob.size > MAX_REFERENCE_BYTES && quality > 0.48) {
+    quality -= 0.1;
+    blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  }
+  if (!blob || blob.size > MAX_REFERENCE_BYTES) throw new Error(file.name + " is too large after compression. Try a smaller screenshot.");
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read " + file.name));
+    reader.readAsDataURL(blob);
+  });
+  return { name: file.name, dataUrl, size: blob.size };
+}
+
+function renderReferences() {
+  const root = $("referencePreviews");
+  root.replaceChildren();
+  referenceImages.forEach((ref, index) => {
+    const card = document.createElement("div"); card.className = "ref";
+    const img = document.createElement("img"); img.src = ref.dataUrl; img.alt = "Reference " + (index + 1);
+    const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "Remove image");
+    remove.addEventListener("click", () => { referenceImages.splice(index, 1); renderReferences(); });
+    const caption = document.createElement("span"); caption.textContent = ref.name;
+    card.append(img, remove, caption); root.append(card);
+  });
+}
+
+$("referenceImages").addEventListener("change", async (event) => {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!files.length) return;
+  if (referenceImages.length + files.length > MAX_REFERENCES) {
+    message("planMessage", "You can attach up to 3 reference images.", "error"); return;
+  }
+  try {
+    for (const file of files) {
+      const ref = await compressReference(file);
+      const total = referenceImages.reduce((sum, item) => sum + item.size, 0) + ref.size;
+      if (total > MAX_TOTAL_REFERENCE_BYTES) throw new Error("Keep all compressed reference images under 2.5 MB total.");
+      referenceImages.push(ref);
+    }
+    renderReferences(); hideMessage("planMessage");
+  } catch (error) { message("planMessage", error.message, "error"); }
+});
+async function api(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(path, { credentials: "same-origin", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+  } catch (error) {
+    throw new Error("Could not reach the dashboard API. Check your internet connection and Vercel deployment, then try again.");
+  }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch {}
+  if (!response.ok) {
+    const detail = typeof data.error === "string" ? data.error : raw.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim().slice(0, 220);
+    throw new Error(detail || `Server returned HTTP ${response.status}. Check the Vercel function and Render logs.`);
+  }
+  if (!raw || !Object.keys(data).length) {
+    throw new Error(`The API returned an empty or invalid response (HTTP ${response.status}). Check the Vercel function logs.`);
+  }
+  return data;
+}
+function message(id, text, kind = "") {
+  const el = $(id); el.textContent = text; el.className = "notice" + (kind ? " " + kind : "");
+}
+function hideMessage(id) { $(id).classList.add("hidden"); }
+function showLogin() { $("login").classList.remove("hidden"); $("app").classList.add("hidden"); }
+function showApp() { $("login").classList.add("hidden"); $("app").classList.remove("hidden"); }
+async function refreshStatus() {
+  const [status, session] = await Promise.all([api("/api/status"), api("/api/session")]);
+  $("serverName").textContent = status.guild.name;
+  $("botState").textContent = status.botReady ? "Online" : "Offline";
+  $("memberCount").textContent = status.guild.memberCount ?? "—";
+  $("aiState").textContent = session.aiReady ? "Ready" : "Needs setup";
+}
+$("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault(); hideMessage("loginMessage");
+  try {
+    await api("/api/login", { method: "POST", body: JSON.stringify({ password: $("password").value }) });
+    $("password").value = ""; showApp(); await refreshStatus();
+  } catch (error) { message("loginMessage", error.message, "error"); }
+});
+$("logout").addEventListener("click", async () => {
+  try { await api("/api/logout", { method: "POST", body: "{}" }); } catch {}
+  showLogin();
+});
+$("generate").addEventListener("click", async () => {
+  const command = $("command").value.trim();
+  if (!command && referenceImages.length === 0) { message("planMessage", "Describe your server goal or attach a reference image first.", "error"); return; }
+  $("generate").disabled = true; $("generate").textContent = "Generating…"; hideMessage("planMessage"); $("previewPanel").classList.add("hidden");
+  try {
+    const data = await api("/api/command/plan", { method: "POST", body: JSON.stringify({
+      command,
+      images: referenceImages.map(({name, dataUrl}) => ({name, dataUrl}))
+    }) });
+    currentPlan = data.preview;
+    $("planSummary").textContent = data.summary;
+    $("createCount").textContent = data.preview.createCount;
+    $("skipCount").textContent = data.preview.skippedCount;
+    $("totalCount").textContent = data.preview.operationCount;
+    $("operations").innerHTML = "";
+    for (const op of data.preview.operations) {
+      const item = document.createElement("div"); item.className = "op";
+      const icon = document.createElement("div"); icon.className = "opicon"; icon.textContent = op.type === "create_role" ? "♟" : op.type === "create_category" ? "▤" : op.type === "create_voice_channel" ? "◖" : "#";
+      const details = document.createElement("div"); details.style.flex = "1";
+      const title = document.createElement("strong"); title.textContent = op.name;
+      if (op.status === "will_create") { const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "NEW"; title.append(tag); }
+      else { const tag = document.createElement("span"); tag.className = "tag"; tag.style.background = "#3b3340"; tag.style.color = "#d6c7df"; tag.textContent = "SKIP"; title.append(tag); }
+      const desc = document.createElement("small"); desc.textContent = op.type.replaceAll("_", " ") + (op.category ? " · " + op.category : "");
+      details.append(title, desc); item.append(icon, details); $("operations").append(item);
+    }
+    $("approval").value = ""; $("apply").disabled = true; $("previewPanel").classList.remove("hidden");
+    $("previewPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { message("planMessage", error.message, "error"); }
+  finally { $("generate").disabled = false; $("generate").textContent = "✦ Analyse & generate architecture"; }
+});
+$("approval").addEventListener("input", () => { $("apply").disabled = $("approval").value.trim() !== "APPLY" || !currentPlan; });
+$("discard").addEventListener("click", () => { currentPlan = null; $("previewPanel").classList.add("hidden"); $("approval").value = ""; });
+$("apply").addEventListener("click", async () => {
+  if (!currentPlan || $("approval").value.trim() !== "APPLY") return;
+  $("apply").disabled = true; $("apply").textContent = "Applying…"; hideMessage("applyMessage");
+  try {
+    const result = await api("/api/apply", { method: "POST", body: JSON.stringify({ operations: currentPlan.operations.map(({status, ...op}) => op), confirm: "APPLY_SERVER_PLAN" }) });
+    const created = result.result.results.filter(x => x.result === "created").length;
+    const skipped = result.result.results.filter(x => x.result === "skipped_existing").length;
+    const failed = result.result.results.filter(x => x.result === "failed").length;
+    message("applyMessage", "Finished: " + created + " created, " + skipped + " skipped, " + failed + " failed. Check your Discord server.", failed ? "error" : "success");
+    currentPlan = null; $("approval").value = ""; await refreshStatus();
+  } catch (error) { message("applyMessage", error.message, "error"); }
+  finally { $("apply").textContent = "Apply approved changes"; $("apply").disabled = true; }
+});
+(async () => {
+  try {
+    const session = await fetch("/api/session", { credentials: "same-origin" });
+    if (session.ok) { showApp(); await refreshStatus(); } else showLogin();
+  } catch { showLogin(); }
+})();
+</script>
+</body>
+</html>
