@@ -158,6 +158,9 @@ app.post("/api/command/plan", async (req, res) => {
       body: JSON.stringify({
         model: config.aiModel,
         temperature: 0.2,
+        // Keep the completion budget bounded. OpenRouter pre-checks the
+        // maximum requested output against available credits before generation.
+        max_tokens: 4096,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -180,14 +183,16 @@ app.post("/api/command/plan", async (req, res) => {
       providerMessage = String(providerMessage).replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted]").replace(/[\r\n\t]+/g, " ").slice(0, 500);
       console.error("AI provider request failed:", { status: response.status, model: config.aiModel, message: providerMessage || "No provider error message returned." });
       const hint = response.status === 401 || response.status === 403
-        ? "Gemini rejected the API key or its permissions. Check AI_API_KEY in Render."
-        : response.status === 404
-          ? "Gemini could not find the configured model or endpoint. Check AI_MODEL and AI_BASE_URL in Render."
-          : response.status === 429
-            ? "Gemini rate limit or quota reached. Check your Google AI Studio quota and billing."
-            : response.status === 400
-              ? "Gemini rejected the request format or model settings."
-              : "Gemini returned HTTP " + response.status + ".";
+        ? "The AI provider rejected the API key or its permissions. Check AI_API_KEY in Render."
+        : response.status === 402
+          ? "The AI provider cannot cover this request's token budget. The bot now caps output at 4096 tokens; if this persists, use a free model variant or check your provider credits and key limits."
+          : response.status === 404
+            ? "The AI provider could not find the configured model or endpoint. Check AI_MODEL and AI_BASE_URL in Render."
+            : response.status === 429
+              ? "The AI provider rate limit or quota was reached. Wait and retry, or configure a fallback model."
+              : response.status === 400
+                ? "The AI provider rejected the request format or model settings."
+                : "The AI provider returned HTTP " + response.status + ".";
       return res.status(502).json({ error: hint + (providerMessage ? " Details: " + providerMessage : "") });
     }
 
